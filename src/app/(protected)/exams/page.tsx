@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { createExam, deleteExam } from "@/features/exams/actions";
+import { createExam } from "@/features/exams/actions";
+import DeleteExamButton from "@/components/delete-buttons/delete-exam-button";
 import { connectDatabase } from "@/lib/database";
 import { currentUserId } from "@/lib/session";
 import { ExamModel } from "@/features/exams/exam.model";
@@ -100,23 +101,17 @@ export default async function ExamsPage() {
                   </p>
                 </div>
 
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3">
+                  {/* Gabarito: outlined teal button */}
                   <Link
-                    className="text-sm font-semibold text-teal-800"
+                    className="inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold border border-teal-700 text-teal-700 hover:bg-teal-700 hover:text-white transition"
                     href={`/exams/${exam._id.toString()}`}
                   >
                     Gabarito
                   </Link>
 
-                  <form action={deleteExam}>
-                    <input type="hidden" name="examId" value={exam._id.toString()} />
-                    <button
-                      type="submit"
-                      className="text-sm text-red-700 hover:underline"
-                    >
-                      Excluir
-                    </button>
-                  </form>
+                  {/* Delete with confirmation modal */}
+                  <DeleteExamButton examId={exam._id.toString()} examTitle={exam.title} />
                 </div>
               </article>
             ))
