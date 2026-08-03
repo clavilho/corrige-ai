@@ -53,51 +53,6 @@ export function CorrectionForm({ exams }: CorrectionFormProps) {
     });
 
     return new Promise((resolve, reject) => {
-      <>
-        {loading && (
-          <div
-            className="
-        fixed
-        inset-0
-        z-[9999]
-        flex
-        items-center
-        justify-center
-        bg-black/50
-        backdrop-blur-sm
-      "
-          >
-            <div
-              className="
-          flex
-          flex-col
-          items-center
-          gap-4
-          rounded-2xl
-          bg-white
-          p-8
-          shadow-2xl
-        "
-            >
-              <LoaderCircle className="h-10 w-10 animate-spin text-[#006F72]" />
-
-              <div className="text-center">
-                <p className="font-semibold text-slate-800">
-                  Corrigindo prova...
-                </p>
-
-                <p className="mt-1 text-sm text-slate-500">
-                  Isso pode levar alguns segundos.
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* resto do formulário */}
-        </form>
-      </>;
 
       const reader = new FileReader();
 
@@ -166,6 +121,47 @@ export function CorrectionForm({ exams }: CorrectionFormProps) {
   }
 
   return (
+    <>
+  {loading && (
+    <div
+      className="
+        fixed
+        inset-0
+        z-[9999]
+        flex
+        items-center
+        justify-center
+        bg-black/50
+        backdrop-blur-sm
+      "
+    >
+      <div
+        className="
+          flex
+          flex-col
+          items-center
+          gap-4
+          rounded-2xl
+          bg-white
+          p-8
+          shadow-2xl
+        "
+      >
+        <LoaderCircle className="h-10 w-10 animate-spin text-[#006F72]" />
+
+        <div className="text-center">
+          <p className="font-semibold text-slate-800">
+            Corrigindo prova...
+          </p>
+
+          <p className="mt-1 text-sm text-slate-500">
+            Isso pode levar alguns segundos.
+          </p>
+        </div>
+      </div>
+    </div>
+  )}
+
     <form onSubmit={handleSubmit} className="space-y-6">
       {/* PROVA */}
       <div>
@@ -354,5 +350,6 @@ export function CorrectionForm({ exams }: CorrectionFormProps) {
         {loading ? "Analisando prova..." : "Analisar e corrigir"}
       </button>
     </form>
+    </>
   );
 }
