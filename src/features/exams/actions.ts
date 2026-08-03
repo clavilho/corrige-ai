@@ -16,8 +16,29 @@ export async function createExam(formData: FormData) {
   redirect(`/exams/${exam.id}`);
 }
 export async function deleteExam(formData: FormData) { const id = await teacherId(); const examId = z.string().min(1).parse(formData.get("examId")); await connectDatabase(); await ExamModel.deleteOne({ _id: examId, teacherId: id }); revalidatePath("/exams"); }
+// use server file (where saveAnswerKey is defined)
 export async function saveAnswerKey(formData: FormData) {
-  const id = await teacherId(); const examId = z.string().min(1).parse(formData.get("examId")); const raw = z.string().parse(formData.get("answers")); const answers = z.array(z.object({ questionNumber: z.number().int().positive(), correctAnswer: z.string().regex(/^[A-F]$/) })).parse(JSON.parse(raw)); await connectDatabase();
-  const exam = await ExamModel.findOne({ _id: examId, teacherId: id }); if (!exam) redirect("/exams"); if (answers.length !== exam.questionCount || new Set(answers.map((item) => item.questionNumber)).size !== answers.length) throw new Error("Preencha uma resposta para cada questão.");
-  await ExamModel.updateOne({ _id: examId, teacherId: id }, { $set: { answerKey: answers } }); revalidatePath(`/exams/${examId}`); revalidatePath("/dashboard");
+  const id = await teacherId();
+  const examId = z.string().min(1).parse(formData.get("examId"));
+  const raw = z.string().parse(formData.get("answers"));
+  const answers = z
+    .array(z.object({ questionNumber: z.number().int().positive(), correctAnswer: z.string().regex(/^[A-F]$/) }))
+    .parse(JSON.parse(raw));
+
+  await connectDatabase();
+  const exam = await ExamModel.findOne({ _id: examId, teacherId: id });
+  if (!exam) redirect("/exams");
+
+  if (answers.length !== exam.questionCount || new Set(answers.map((item) => item.questionNumber)).size !== answers.length) {
+    throw new Error("Preencha uma resposta para cada questão.");
+  }
+
+  await ExamModel.updateOne({ _id: examId, teacherId: id }, { $set: { answerKey: answers } });
+
+  // Revalidate pages if needed
+  revalidatePath(`/exams/${examId}`);
+  revalidatePath("/dashboard");
+
+  // Redirect to the exams list after saving (per your request)
+  redirect("/exams");
 }

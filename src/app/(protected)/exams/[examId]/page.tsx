@@ -20,16 +20,15 @@ export default async function ExamDetailPage({
       <Link href="/exams" className="text-sm text-teal-800">
         ← Voltar às provas
       </Link>
-      <h1 className="mt-4 text-3xl font-bold">{exam.title}</h1>
-      <p className="mt-1 text-slate-600">
-        Defina uma resposta correta para cada questão.
-      </p>
+      <h1 className="mt-4 text-3xl font-bold">{(exam as any).title}</h1>
+      <p className="mt-1 text-slate-600">Defina uma resposta correta para cada questão.</p>
       <div className="mt-6">
         <AnswerKeyEditor
-          examId={exam._id.toString()}
-          questionCount={exam.questionCount}
-          alternativeCount={exam.alternativeCount}
-          initialAnswers={exam.answerKey}
+          examId={(exam as any)._id.toString()}
+          examTitle={(exam as any).title ?? ""}
+          questionCount={(exam as any).questionCount}
+          alternativeCount={(exam as any).alternativeCount}
+          initialAnswers={(exam as any).answerKey ?? []}
         />
       </div>
     </div>
