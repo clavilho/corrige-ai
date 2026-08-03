@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef } from "react";
+import React, { useRef, useState } from "react";
 import ConfirmDialog from "../confirm-dialog";
 import { deleteExam } from "@/features/exams/actions";
 
@@ -12,11 +12,38 @@ export default function DeleteExamButton({
   examTitle?: string;
 }) {
   const formRef = useRef<HTMLFormElement | null>(null);
+  const [loading, setLoading] = useState(false);
 
   // onConfirm will submit the hidden form (Server Action)
   function onConfirm() {
-    // requestSubmit triggers the form submission and preserves Server Action behavior
-    formRef.current?.requestSubmit();
+   return new Promise((resolve) => {
+      try {
+        setLoading(true);
+        
+        formRef.current?.requestSubmit();
+
+        const onPageHide = () => {
+          cleanup();
+          resolve();
+        };
+
+        const timeout = window.setTimeout(() => {
+          cleanup();
+          resolve();
+        }, 10000); // 10s fallback
+
+        function cleanup() {
+          window.removeEventListener("pagehide", onPageHide);
+          window.clearTimeout(timeout);
+        }
+
+        window.addEventListener("pagehide", onPageHide, { once: true });
+      } catch (err) {
+        console.error("deleteCorrection submit failed", err);
+        setLoading(false);
+        resolve();
+      }
+    });
   }
 
   return (
