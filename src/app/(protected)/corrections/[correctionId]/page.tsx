@@ -18,11 +18,26 @@ export default async function CorrectionDetailPage({
   if (!correction) notFound();
 
   const exam = await ExamModel.findOne({ _id: correction.examId, teacherId }).lean();
+  const scoreObj = correction.score && typeof correction.score === "object" ? (correction.score as any) : undefined;
+  const totalQuestions =
+  exam?.questionCount ??
+  correction.totalQuestions ??
+  scoreObj?.total ??
+  (correction.answers?.length ?? 0);
 
-  const totalQuestions = (correction.totalQuestions ?? correction.score?.total ?? (correction.answers?.length ?? 0));
-  const correctAnswers = correction.correctAnswers ?? correction.score?.correct ?? correction.answers?.filter((a: any) => a.isCorrect)?.length ?? 0;
-  const wrongAnswers = correction.wrongAnswers ?? (totalQuestions - correctAnswers);
-  const unidentified = correction.unidentified ?? correction.answers?.filter((a: any) => !a.markedAnswer)?.length ?? 0;
+const correctAnswers =
+  correction.correctAnswers ??
+  scoreObj?.correct ??
+  (correction.answers ? correction.answers.filter((a: any) => a.markedAnswer === a.correctAnswer).length : 0);
+
+const wrongAnswers =
+  correction.wrongAnswers ??
+  scoreObj?.wrong ??
+  (typeof totalQuestions === "number" ? totalQuestions - correctAnswers : 0);
+
+const unidentified =
+  correction.unidentified ??
+  (correction.answers ? correction.answers.filter((a: any) => !a.markedAnswer).length : 0);
 
   return (
     <div className="space-y-6">

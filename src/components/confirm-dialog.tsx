@@ -46,22 +46,30 @@ export default function ConfirmDialog({
     }
   }
 
-  // clone trigger element to open modal (preserve existing props/click handler)
-  const trigger = React.cloneElement(children, {
-    onClick: (e: any) => {
-      if (typeof children.props.onClick === "function") children.props.onClick(e);
-      e?.preventDefault?.();
-      setOpen(true);
-    },
-    className: [children.props.className, className].filter(Boolean).join(" "),
-  });
+  const trigger = React.isValidElement(children)
+    ? React.cloneElement(children as React.ReactElement<any>, {
+        onClick: (e: any) => {
+          const origOnClick = (children.props as any)?.onClick;
+          if (typeof origOnClick === "function") origOnClick(e);
+          e?.preventDefault?.();
+          setOpen(true);
+        },
+        className: [(children.props as any)?.className, className]
+          .filter(Boolean)
+          .join(" "),
+      })
+    : children;
 
   return (
     <>
       {trigger}
 
       {open && (
-        <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex items-center justify-center">
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center"
+        >
           <div
             className="fixed inset-0 bg-black/50"
             onClick={() => setOpen(false)}
@@ -70,7 +78,9 @@ export default function ConfirmDialog({
 
           <div className="relative mx-4 w-full max-w-lg rounded-xl bg-white p-6 shadow-lg">
             {title && <h3 className="text-lg font-semibold">{title}</h3>}
-            {description && <p className="mt-3 text-sm text-slate-700">{description}</p>}
+            {description && (
+              <p className="mt-3 text-sm text-slate-700">{description}</p>
+            )}
 
             <div className="mt-6 flex justify-end gap-3">
               <button
