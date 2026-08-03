@@ -3,7 +3,9 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Camera, Upload } from "lucide-react";
-import { createCorrection } from "@/features/corrections/actions.ts";
+import { createCorrection } from "@/features/corrections/actions";
+import imageCompression from "browser-image-compression";
+import { LoaderCircle } from "lucide-react";
 
 interface Exam {
   id: string;
@@ -25,27 +27,89 @@ export function CorrectionForm({ exams }: CorrectionFormProps) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  async function convertToBase64(file: File): Promise<string> {
+    console.log("Imagem original:");
 
-  function convertToBase64(file: File): Promise<string> {
+    console.log({
+      nome: file.name,
+      tamanhoKB: (file.size / 1024).toFixed(2),
+      tamanhoMB: (file.size / 1024 / 1024).toFixed(2),
+    });
+
+    const compressed = await imageCompression(file, {
+      maxSizeMB: 0.35,
+      maxWidthOrHeight: 1600,
+      useWebWorker: true,
+      fileType: "image/jpeg",
+      initialQuality: 0.75,
+    });
+
+    console.log("Imagem comprimida:");
+
+    console.log({
+      nome: compressed.name,
+      tamanhoKB: (compressed.size / 1024).toFixed(2),
+      tamanhoMB: (compressed.size / 1024 / 1024).toFixed(2),
+    });
+
     return new Promise((resolve, reject) => {
+      <>
+        {loading && (
+          <div
+            className="
+        fixed
+        inset-0
+        z-[9999]
+        flex
+        items-center
+        justify-center
+        bg-black/50
+        backdrop-blur-sm
+      "
+          >
+            <div
+              className="
+          flex
+          flex-col
+          items-center
+          gap-4
+          rounded-2xl
+          bg-white
+          p-8
+          shadow-2xl
+        "
+            >
+              <LoaderCircle className="h-10 w-10 animate-spin text-[#006F72]" />
+
+              <div className="text-center">
+                <p className="font-semibold text-slate-800">
+                  Corrigindo prova...
+                </p>
+
+                <p className="mt-1 text-sm text-slate-500">
+                  Isso pode levar alguns segundos.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* resto do formulário */}
+        </form>
+      </>;
+
       const reader = new FileReader();
 
-      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result as string);
 
-      reader.onload = () => {
-        resolve(reader.result as string);
-      };
+      reader.onerror = reject;
 
-      reader.onerror = (error) => {
-        reject(error);
-      };
+      reader.readAsDataURL(compressed);
     });
   }
 
-
-  function handleFileChange(
-    event: React.ChangeEvent<HTMLInputElement>
-  ) {
+  function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
 
     if (!file) return;
@@ -54,46 +118,34 @@ export function CorrectionForm({ exams }: CorrectionFormProps) {
     setError("");
   }
 
-
-  async function handleSubmit(
-    event: React.FormEvent<HTMLFormElement>
-  ) {
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     setError("");
-
 
     if (!selectedExamId) {
       setError("Selecione uma prova.");
       return;
     }
 
-
     if (!studentName.trim()) {
       setError("Informe o nome do aluno.");
       return;
     }
-
 
     if (!selectedImage) {
       setError("Envie uma imagem da prova.");
       return;
     }
 
-
     try {
       setLoading(true);
 
-
       console.log("Convertendo imagem...");
 
-      const imageDataUrl = await convertToBase64(
-        selectedImage
-      );
-
+      const imageDataUrl = await convertToBase64(selectedImage);
 
       console.log("Criando correção...");
-
 
       const result = await createCorrection({
         examId: selectedExamId,
@@ -101,40 +153,20 @@ export function CorrectionForm({ exams }: CorrectionFormProps) {
         imageDataUrl,
       });
 
+      console.log("Correção criada:", result);
 
-      console.log(
-        "Correção criada:",
-        result
-      );
-
-
-      router.push(
-        `/corrections/${result.correctionId}`
-      );
-
-
+      router.push(`/corrections/${result.correctionId}`);
     } catch (err) {
-
       console.error(err);
 
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Erro ao corrigir prova."
-      );
-
+      setError(err instanceof Error ? err.message : "Erro ao corrigir prova.");
     } finally {
       setLoading(false);
     }
   }
 
-
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="space-y-6"
-    >
-
+    <form onSubmit={handleSubmit} className="space-y-6">
       {/* PROVA */}
       <div>
         <label
@@ -149,13 +181,10 @@ export function CorrectionForm({ exams }: CorrectionFormProps) {
           Prova
         </label>
 
-
         <select
           id="exam"
           value={selectedExamId}
-          onChange={(e) =>
-            setSelectedExamId(e.target.value)
-          }
+          onChange={(e) => setSelectedExamId(e.target.value)}
           className="
             w-full
             rounded-xl
@@ -168,28 +197,18 @@ export function CorrectionForm({ exams }: CorrectionFormProps) {
             focus:border-[#1E7F84]
           "
         >
-
-          <option value="">
-            Selecione a prova
-          </option>
-
+          <option value="">Selecione a prova</option>
 
           {exams.map((exam) => (
-            <option
-              key={exam.id}
-              value={exam.id}
-            >
+            <option key={exam.id} value={exam.id}>
               {exam.title}
             </option>
           ))}
-
         </select>
       </div>
 
-
       {/* ALUNO */}
       <div>
-
         <label
           htmlFor="studentName"
           className="
@@ -202,13 +221,10 @@ export function CorrectionForm({ exams }: CorrectionFormProps) {
           Nome do aluno
         </label>
 
-
         <input
           id="studentName"
           value={studentName}
-          onChange={(e) =>
-            setStudentName(e.target.value)
-          }
+          onChange={(e) => setStudentName(e.target.value)}
           placeholder="Digite o nome do aluno"
           className="
             w-full
@@ -221,14 +237,10 @@ export function CorrectionForm({ exams }: CorrectionFormProps) {
             focus:border-[#1E7F84]
           "
         />
-
       </div>
-
 
       {/* UPLOAD */}
       <div className="grid grid-cols-2 gap-4">
-
-
         {/* GALERIA */}
         <label
           htmlFor="gallery"
@@ -248,15 +260,10 @@ export function CorrectionForm({ exams }: CorrectionFormProps) {
             hover:border-[#1E7F84]
           "
         >
-
           <Upload className="h-6 w-6" />
 
-          <span className="text-sm font-medium">
-            Enviar imagem
-          </span>
-
+          <span className="text-sm font-medium">Enviar imagem</span>
         </label>
-
 
         <input
           id="gallery"
@@ -265,8 +272,6 @@ export function CorrectionForm({ exams }: CorrectionFormProps) {
           onChange={handleFileChange}
           className="hidden"
         />
-
-
 
         {/* CAMERA */}
         <label
@@ -287,15 +292,10 @@ export function CorrectionForm({ exams }: CorrectionFormProps) {
             hover:border-[#1E7F84]
           "
         >
-
           <Camera className="h-6 w-6" />
 
-          <span className="text-sm font-medium">
-            Tirar foto
-          </span>
-
+          <span className="text-sm font-medium">Tirar foto</span>
         </label>
-
 
         <input
           id="camera"
@@ -305,11 +305,7 @@ export function CorrectionForm({ exams }: CorrectionFormProps) {
           onChange={handleFileChange}
           className="hidden"
         />
-
-
       </div>
-
-
 
       {/* PREVIEW */}
       {selectedImage && (
@@ -320,20 +316,11 @@ export function CorrectionForm({ exams }: CorrectionFormProps) {
             p-4
           "
         >
+          <p className="text-sm text-slate-600">Arquivo selecionado:</p>
 
-          <p className="text-sm text-slate-600">
-            Arquivo selecionado:
-          </p>
-
-
-          <p className="font-semibold">
-            {selectedImage.name}
-          </p>
-
+          <p className="font-semibold">{selectedImage.name}</p>
         </div>
       )}
-
-
 
       {/* ERRO */}
       {error && (
@@ -350,8 +337,6 @@ export function CorrectionForm({ exams }: CorrectionFormProps) {
         </div>
       )}
 
-
-
       {/* BOTÃO */}
       <button
         type="submit"
@@ -366,12 +351,8 @@ export function CorrectionForm({ exams }: CorrectionFormProps) {
           disabled:opacity-50
         "
       >
-        {loading
-          ? "Analisando prova..."
-          : "Analisar e corrigir"}
+        {loading ? "Analisando prova..." : "Analisar e corrigir"}
       </button>
-
-
     </form>
   );
 }
