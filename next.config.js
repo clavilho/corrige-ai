@@ -1,12 +1,17 @@
-// next.config.js
-// Adiciona allowedDevOrigins para permitir acesso ao HMR em hosts de desenvolvimento na rede local.
-// Reinicie o servidor de desenvolvimento após alterar este arquivo.
-
+// next.config.js (na raiz do projeto)
 module.exports = {
-  // Ajuste as origens conforme necessário (inclua protocolo e porta exatos usados no celular)
   allowedDevOrigins: [
+    // IPs que já apareceram nos seus logs — inclua formas com e sem protocolo/porta
+    '192.168.0.241',
+    'http://192.168.0.241',
+    'http://192.168.0.241:3000',
+
+    '192.168.0.245',
     'http://192.168.0.245',
     'http://192.168.0.245:3000',
-    'http://localhost:3000'
+
+    // locais usuais
+    'http://localhost:3000',
+    'http://127.0.0.1:3000'
   ],
 };

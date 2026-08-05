@@ -1,19 +1,89 @@
-import { LandingHeader } from "../app/components/landing/components/LandingHeader";
-import { LandingHero } from "../app/components/landing/components/LandingHero";
-import { LandingFeatures } from "../app/components/landing/components/LandingFeatures";
+import Link from "next/link";
+import Image from "next/image";
+import { BarChart3, FileText, ListChecks, ScanLine } from "lucide-react";
+import heroImage from "./assets/hero-correcao.jpg";
 
-export const metadata = {
-  title: "CorrigeAI — Correção automática de provas por foto",
-  description:
-    "Cadastre o gabarito, fotografe a folha de respostas e receba nota e relatório.",
-};
+const features = [
+  {
+    icon: ListChecks,
+    title: "Gabarito oficial",
+    text: "Cadastre provas com até 100 questões e defina a resposta correta de cada uma.",
+  },
+  {
+    icon: FileText,
+    title: "Folha padronizada",
+    text: "Gere o modelo em PDF com marcadores de alinhamento para leitura precisa.",
+  },
+  {
+    icon: ScanLine,
+    title: "Leitura por imagem",
+    text: "A IA identifica as marcações da foto e compara com o gabarito automaticamente.",
+  },
+  {
+    icon: BarChart3,
+    title: "Relatórios e painel",
+    text: "Nota, acertos, erros, histórico e desempenho da turma em um só lugar.",
+  },
+];
 
 export default function Home() {
   return (
-    <main>
-      <LandingHeader />
-      <LandingHero />
-      <LandingFeatures />
+    <main className="min-h-screen bg-[#fcfbf7]">
+      <header className="mx-auto flex max-w-6xl items-center justify-between px-6 py-6">
+        <span className="text-lg font-semibold tracking-tight">CorrigeAI</span>
+        <Link
+          href="/auth"
+          className="rounded-lg bg-[#007782] px-4 py-2 text-sm font-medium text-white shadow-sm"
+        >
+          Entrar
+        </Link>
+      </header>
+      <section className="mx-auto grid max-w-6xl items-center gap-10 px-6 pb-16 pt-8 lg:grid-cols-2">
+        <div className="space-y-6">
+          <h1 className="text-4xl font-semibold leading-tight tracking-tight sm:text-5xl">
+            Corrija provas de múltipla escolha com uma foto
+          </h1>
+          <p className="text-lg text-slate-500">
+            Feito para escolas, cursinhos e universidades: cadastre o gabarito,
+            envie a imagem da folha do aluno e receba a nota e o relatório
+            completo em segundos.
+          </p>
+          <div className="flex flex-wrap gap-3">
+            <Link
+              href="/auth"
+              className="rounded-lg bg-[#007782] px-5 py-3 text-base font-medium text-white shadow-sm"
+            >
+              Começar agora
+            </Link>
+            <Link
+              href="/dashboard"
+              className="rounded-lg border border-slate-200 bg-white px-5 py-3 text-base font-medium shadow-sm"
+            >
+              Ver painel
+            </Link>
+          </div>
+        </div>
+        <Image
+          src={heroImage}
+          alt="Professor fotografando uma folha de respostas de múltipla escolha"
+          priority
+          className="w-full rounded-2xl border border-slate-200 shadow-[0_12px_32px_-12px_rgba(23,38,51,.18)]"
+        />
+      </section>
+      <section className="mx-auto max-w-6xl px-6 pb-24">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {features.map(({ icon: Icon, title, text }) => (
+            <article
+              key={title}
+              className="rounded-xl border border-slate-200 bg-white p-6 shadow-[0_12px_32px_-12px_rgba(23,38,51,.18)]"
+            >
+              <Icon className="size-6 text-amber-500" />
+              <h2 className="mt-3 font-medium">{title}</h2>
+              <p className="mt-3 text-sm text-slate-500">{text}</p>
+            </article>
+          ))}
+        </div>
+      </section>
     </main>
   );
 }
