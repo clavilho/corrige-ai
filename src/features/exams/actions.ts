@@ -6,6 +6,7 @@ import { z } from "zod";
 import { connectDatabase } from "@/lib/database";
 import { currentUserId } from "@/lib/session";
 import { ExamModel } from "./exam.model";
+import { AnswerKeyItem, ExamFormData } from "@/types/ExamFormData";
 
 const examInput = z.object({
   title: z.string().trim().min(2).max(160),
@@ -21,17 +22,27 @@ async function teacherId() {
   return id;
 }
 
-export async function createExam(formData: FormData) {
-  const input = examInput.parse(Object.fromEntries(formData));
-  const id = await teacherId();
+export async function createExamWithAnswerKey(
+  data: ExamFormData,
+  answers: AnswerKeyItem[]
+) {
+  const teacherId = await currentUserId();
   await connectDatabase();
-  const exam = await ExamModel.create({
-    ...input,
-    teacherId: id,
-    examDate: input.examDate ? new Date(input.examDate) : null,
+ 
+  await ExamModel.create({
+    teacherId,
+    title: data.title,
+    subject: data.subject,
+    className: data.className,
+    examDate: data.examDate ? new Date(data.examDate) : undefined,
+    questionCount: data.questionCount,
+    alternativeCount: data.alternativeCount,
+    answerKey: answers,
   });
-  redirect(`/exams/${exam.id}`);
+ 
+  redirect("/exams");
 }
+
 export async function deleteExam(formData: FormData) {
   const id = await teacherId();
   const examId = z.string().min(1).parse(formData.get("examId"));

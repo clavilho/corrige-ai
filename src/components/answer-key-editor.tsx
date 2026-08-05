@@ -40,11 +40,11 @@ export function AnswerKeyEditor({
       JSON.stringify(
         currentAsArray.sort((a, b) => a.questionNumber - b.questionNumber)
       ) !==
-        JSON.stringify(
-          initialAnswers
-            .map((a) => ({ questionNumber: a.questionNumber, correctAnswer: a.correctAnswer }))
-            .sort((a, b) => a.questionNumber - b.questionNumber)
-        );
+      JSON.stringify(
+        initialAnswers
+          .map((a) => ({ questionNumber: a.questionNumber, correctAnswer: a.correctAnswer }))
+          .sort((a, b) => a.questionNumber - b.questionNumber)
+      );
 
     if (hasExisting && changed) {
       setShowConfirm(true);
@@ -87,26 +87,26 @@ export function AnswerKeyEditor({
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: questionCount }, (_, index) => index + 1).map((question) => (
-            <fieldset key={question} className="flex items-center gap-2 rounded border p-3">
-              <legend className="text-sm font-semibold">Questão {question}</legend>
+            <div key={question} className="flex items-center gap-2 justify-between rounded-lg border border-gray-200 px-4 py-2">
+              <span className="text-sm font-semibold mr-2 text-gray-600">Questão {question}</span>
 
               {letters.map((letter) => (
-                <label key={letter} className="cursor-pointer text-sm">
-                  <input
-                    type="radio"
-                    name={`question-${question}`}
-                    checked={answers[question] === letter}
-                    onChange={() =>
-                      setAnswers((current) => ({
-                        ...current,
-                        [question]: letter,
-                      }))
-                    }
-                  />{" "}
-                  {letter}
-                </label>
+                <button key={letter} type="button" className={`
+                flex py-1.5 px-3 cursor-pointer rounded-full border border-gray-200 text-gray-500
+                ${answers[question] === letter
+                    ? "border-teal-700 bg-teal-700 text-white"
+                    : "hover:border-teal-700 hover:text-teal-700"
+                  }
+                `}
+                  onClick={() =>
+                    setAnswers((current) => ({
+                      ...current,
+                      [question]: letter,
+                    }))}>
+                  <span className="font-semibold">{letter}</span>
+                </button>
               ))}
-            </fieldset>
+            </div>
           ))}
         </div>
 
