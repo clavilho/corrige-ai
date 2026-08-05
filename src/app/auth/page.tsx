@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { AuthPanel } from "@/components/auth-panel";
+import { currentUserId } from "@/lib/session";
+import { redirect } from "next/navigation";
 
 export default async function AuthPage({
   searchParams,
@@ -13,6 +15,9 @@ export default async function AuthPage({
       : error === "email"
         ? "Este e-mail já está cadastrado."
         : "";
+
+  if ((await currentUserId())) redirect("/dashboard");
+
   return (
     <main className="flex min-h-screen items-center justify-center bg-[#fcfbf7] px-4 py-12">
       <div className="w-full max-w-md">
