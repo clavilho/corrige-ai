@@ -15,9 +15,10 @@ interface Exam {
 
 interface CorrectionFormProps {
   exams: Exam[];
+  onImageSelected?: (dataUrl: string | null) => void;
 }
 
-export function CorrectionForm({ exams }: CorrectionFormProps) {
+export function CorrectionForm({ exams, onImageSelected }: CorrectionFormProps) {
   const router = useRouter();
 
   const [selectedExamId, setSelectedExamId] = useState("");

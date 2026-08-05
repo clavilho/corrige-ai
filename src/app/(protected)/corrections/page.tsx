@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { deleteCorrection } from "@/features/corrections/actions";
+import DeleteCorrectionButton from "@/components/delete-buttons/delete-correction-button";
 import { CorrectionModel } from "@/features/corrections/correction.model";
 import { ExamModel } from "@/features/exams/exam.model";
 import { connectDatabase } from "@/lib/database";
@@ -51,21 +51,15 @@ export default async function CorrectionsPage() {
 
                 <Link
                   href={`/corrections/${correction._id.toString()}`}
-                  className="text-sm font-semibold text-teal-800"
+                  className="inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold border border-teal-700 text-teal-700 hover:bg-teal-700 hover:text-white transition"
                 >
                   Detalhes
                 </Link>
 
-                <form action={deleteCorrection} className="m-0">
-                  <input type="hidden" name="correctionId" value={correction._id.toString()} />
-                  <button
-                    type="submit"
-                    className="text-sm text-red-700 hover:underline"
-                    aria-label={`Excluir correção ${correction._id.toString()}`}
-                  >
-                    Excluir
-                  </button>
-                </form>
+                <DeleteCorrectionButton
+                  correctionId={correction._id.toString()}
+                  studentName={correction.studentName}
+                />
               </div>
             </article>
           ))

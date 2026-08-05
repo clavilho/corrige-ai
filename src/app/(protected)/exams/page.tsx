@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { deleteExam } from "@/features/exams/actions";
+import DeleteExamButton from "@/components/delete-buttons/delete-exam-button";
 import { connectDatabase } from "@/lib/database";
 import { currentUserId } from "@/lib/session";
 import { ExamModel } from "@/features/exams/exam.model";
@@ -46,12 +46,7 @@ export default async function ExamsPage() {
                   Gabarito
                 </Link>
  
-                <form action={deleteExam}>
-                  <input type="hidden" name="examId" value={exam._id.toString()} />
-                  <button type="submit" className="text-sm text-red-700 hover:underline">
-                    Excluir
-                  </button>
-                </form>
+                <DeleteExamButton examId={exam._id.toString()} examTitle={exam.title} />
               </div>
             </article>
           ))
