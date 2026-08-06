@@ -4,6 +4,7 @@ import { CorrectionModel } from "@/features/corrections/correction.model";
 import { ExamModel } from "@/features/exams/exam.model";
 import { connectDatabase } from "@/lib/database";
 import { currentUserId } from "@/lib/session";
+import { ArrowLeft } from "lucide-react";
 
 export default async function CorrectionDetailPage({
   params,
@@ -43,8 +44,30 @@ const unidentified =
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <Link href="/corrections" className="text-sm text-teal-800">
-            ← Voltar ao histórico
+          <Link  href="/corrections"
+        className="
+          inline-flex
+          items-center
+          gap-2
+          rounded-xl
+          border
+          border-slate-200
+          bg-white
+          px-4
+          py-2
+          text-sm
+          font-medium
+          text-slate-700
+          shadow-sm
+          transition-all
+          duration-200
+          hover:-translate-x-1
+          hover:border-[#006F72]
+          hover:bg-[#EAF7F7]
+          hover:text-[#006F72]
+        ">
+          <ArrowLeft classname="h-4 w-4"/>
+             Voltar ao histórico
           </Link>
           <h1 className="mt-4 text-3xl font-bold">{exam?.title ?? "Resultado da correção"}</h1>
           <p className="mt-1 text-slate-600">
