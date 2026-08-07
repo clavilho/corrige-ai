@@ -66,7 +66,7 @@ const unidentified =
           hover:bg-[#EAF7F7]
           hover:text-[#006F72]
         ">
-          <ArrowLeft classname="h-4 w-4"/>
+          <ArrowLeft className="h-4 w-4"/>
              Voltar ao histórico
           </Link>
           <h1 className="mt-4 text-3xl font-bold">{exam?.title ?? "Resultado da correção"}</h1>
