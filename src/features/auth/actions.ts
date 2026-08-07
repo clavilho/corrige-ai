@@ -16,10 +16,7 @@ const testAccount = { email: "admin@admin", password: "admin", id: "000000000000
 export async function signIn(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
-  if (email === testAccount.email && password === testAccount.password) {
-    await createSession(testAccount.id);
-    redirect("/dashboard");
-  }
+  
   const input = credentials.parse({
     email: formData.get("email"),
     password: formData.get("password"),
