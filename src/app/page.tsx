@@ -30,7 +30,17 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-[#fcfbf7]">
       <header className="mx-auto flex max-w-6xl items-center justify-between px-6 py-6">
-        <span className="text-lg font-semibold tracking-tight">CorrigeAI</span>
+          <Image
+      src="/logo-icon.png"
+      alt="CorrigeAI"
+      width={48}
+      height={48}
+      className="h-12 w-12 object-contain"
+      priority
+    />
+    <span className="ml-3 text-lg font-semibold tracking-tight">
+      CorrigeAI
+    </span>
         <Link
           href="/auth"
           className="rounded-lg bg-[#007782] px-4 py-2 text-sm font-medium text-white shadow-sm"

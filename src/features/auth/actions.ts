@@ -11,7 +11,6 @@ const credentials = z.object({
   email: z.string().trim().email().max(255),
   password: z.string().min(8).max(72),
 });
-const testAccount = { email: "admin@admin", password: "admin", id: "000000000000000000000001" };
 
 export async function signIn(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
