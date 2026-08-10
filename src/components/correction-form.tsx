@@ -6,6 +6,7 @@ import { Camera, Upload } from "lucide-react";
 import { createCorrection } from "@/features/corrections/actions";
 import imageCompression from "browser-image-compression";
 import { LoaderCircle } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface Exam {
   id: string;
@@ -335,21 +336,13 @@ export function CorrectionForm({ exams, onImageSelected }: CorrectionFormProps) 
       )}
 
       {/* BOTÃO */}
-      <button
+      <Button
         type="submit"
         disabled={loading}
-        className="
-          w-full
-          rounded-xl
-          bg-[#006F72]
-          py-3.5
-          font-semibold
-          text-white
-          disabled:opacity-50
-        "
+        className="w-full"
       >
         {loading ? "Analisando prova..." : "Analisar e corrigir"}
-      </button>
+      </Button>
     </form>
     </>
   );

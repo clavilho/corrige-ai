@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Button } from "@/components/ui/button";
 import { FileText, ScanLine, Target, TrendingUp } from "lucide-react";
 import { connectDatabase } from "@/lib/database";
 import { currentUserId } from "@/lib/session";
@@ -14,7 +15,7 @@ export default async function DashboardPage() {
   ]);
   const average = corrections.length
     ? corrections.reduce((sum, item) => sum + item.score, 0) /
-      corrections.length
+    corrections.length
     : 0;
   const accuracy =
     (corrections.reduce((sum, item) => sum + item.correctAnswers, 0) /
@@ -43,18 +44,12 @@ export default async function DashboardPage() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Link
-            className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium shadow-sm"
-            href="/exams"
-          >
-            Nova prova
-          </Link>
-          <Link
-            className="rounded-md bg-[#007782] px-3 py-2 text-sm font-medium text-white shadow-sm"
-            href="/correct"
-          >
-            Corrigir prova
-          </Link>
+          <Button variant="outline">
+            <Link href="/exams">Nova prova</Link>
+          </Button>
+          <Button>
+            <Link href="/correct">Corrigir prova</Link>
+          </Button>
         </div>
       </div>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

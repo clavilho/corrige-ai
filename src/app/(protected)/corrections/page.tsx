@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Button } from "@/components/ui/button";
 import DeleteCorrectionButton from "@/components/delete-buttons/delete-correction-button";
 import { CorrectionModel } from "@/features/corrections/correction.model";
 import { ExamModel } from "@/features/exams/exam.model";
@@ -49,12 +50,9 @@ export default async function CorrectionsPage() {
                   <p className="text-xs text-slate-500">nota</p>
                 </div>
 
-                <Link
-                  href={`/corrections/${correction._id.toString()}`}
-                  className="inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold border border-teal-700 text-teal-700 hover:bg-teal-700 hover:text-white transition"
-                >
+                <Button variant="outline" size="sm" render={<Link href={`/corrections/${correction._id.toString()}`} />}>
                   Detalhes
-                </Link>
+                </Button>
 
                 <DeleteCorrectionButton
                   correctionId={correction._id.toString()}

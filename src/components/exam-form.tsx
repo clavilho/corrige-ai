@@ -203,12 +203,12 @@ export function NewExamForm() {
 
               <div className="flex flex-row gap-2 justify-between md:justify-normal">
                 {letters.map((letter) => (
-                  <button
+                  <Button
                     key={letter}
                     type="button"
-                    className={`flex cursor-pointer rounded-full outline outline-gray-200 text-sm px-3 py-1.5 text-gray-500 ${
-                      answers[question] === letter ? "outline-teal-700 bg-teal-700 text-white" : "hover:outline-2 hover:outline-teal-700 hover:text-teal-700"
-                    }`}
+                    variant={answers[question] === letter ? "default" : "outline"}
+                    size="sm"
+                    className="rounded-full font-semibold"
                     onClick={() =>
                       setAnswers((current) => ({
                         ...current,
@@ -216,8 +216,8 @@ export function NewExamForm() {
                       }))
                     }
                   >
-                    <span className="font-semibold">{letter}</span>
-                  </button>
+                    {letter}
+                  </Button>
                 ))}
               </div>
             </div>

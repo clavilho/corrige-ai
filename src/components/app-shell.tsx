@@ -2,13 +2,13 @@ import Link from "next/link";
 import Image from "next/image";
 import {
   FileText,
-  GraduationCap,
   History,
   LayoutDashboard,
   LogOut,
   ScanLine,
 } from "lucide-react";
 import { signOut } from "@/features/auth/actions";
+import { Button } from "@/components/ui/button";
 
 const navigation = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -25,14 +25,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <Link href="/dashboard" className="flex items-center gap-3 font-semibold">
             {/* versão completa do logo (desktop) */}
             <div className="hidden md:flex items-center gap-3">
-             <Image
-          src="/logo.png"
-          alt="Corrige AI"
-          width={180}
-          height={80}
-          className="h-auto w-[180px]"
-          priority
-        />
+              <Image
+                src="/logo.png"
+                alt="Corrige AI"
+                width={180}
+                height={40}
+                priority
+              />
             </div>
 
             {/* versão só-ícone (mobile) */}
@@ -46,22 +45,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
           <nav className="ml-auto hidden items-center gap-1 md:flex">
             {navigation.map(({ href, label }) => (
-              <Link
-                key={href}
-                href={href}
-                className="rounded-md px-3 py-2 text-sm text-slate-500 transition hover:bg-[#e8f5f5] hover:text-slate-900"
-              >
-                {label}
-              </Link>
+              <Button variant="ghost">
+                <Link
+                  key={href}
+                  href={href}
+                >
+                  {label}
+                </Link>
+              </Button>
             ))}
           </nav>
 
-          <form action={signOut} className="ml-auto md:ml-0">
-            <button className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-slate-600 hover:bg-slate-100">
-              <LogOut className="size-4" />
-              Sair
-            </button>
-          </form>
+          <Button variant="ghost" onClick={signOut}>
+            <LogOut className="size-4" />
+            Sair
+          </Button>
         </div>
 
         <nav className="flex gap-1 overflow-x-auto border-t border-slate-200 px-3 py-2 md:hidden">

@@ -2,6 +2,7 @@
 
 import { useState, useRef } from "react";
 import { saveAnswerKey } from "@/features/exams/actions";
+import { Button } from "@/components/ui/button";
 
 export function AnswerKeyEditor({
   examId,
@@ -91,33 +92,34 @@ export function AnswerKeyEditor({
               <span className="text-sm font-semibold mr-2 text-gray-600">Questão {question}</span>
 
               {letters.map((letter) => (
-                <button key={letter} type="button" className={`
-                flex py-1.5 px-3 cursor-pointer rounded-full border border-gray-200 text-gray-500
-                ${answers[question] === letter
-                    ? "border-teal-700 bg-teal-700 text-white"
-                    : "hover:border-teal-700 hover:text-teal-700"
-                  }
-                `}
+                <Button
+                  key={letter}
+                  type="button"
+                  variant={answers[question] === letter ? "default" : "outline"}
+                  size="sm"
+                  className="rounded-full font-semibold"
                   onClick={() =>
                     setAnswers((current) => ({
                       ...current,
                       [question]: letter,
-                    }))}>
-                  <span className="font-semibold">{letter}</span>
-                </button>
+                    }))
+                  }
+                >
+                  {letter}
+                </Button>
               ))}
             </div>
           ))}
         </div>
 
-        <button
+        <Button
           type="button"
           onClick={handleSaveClick}
-          className="mt-6 rounded bg-teal-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+          className="mt-6"
           disabled={isSubmitting}
         >
           {isSubmitting ? "Salvando..." : `Salvar gabarito (${Object.keys(answers).length}/${questionCount})`}
-        </button>
+        </Button>
       </form>
 
       {/* Confirm modal */}
@@ -146,18 +148,17 @@ export function AnswerKeyEditor({
             </p>
 
             <div className="mt-5 flex justify-end gap-3">
-              <button
+              <Button
+                variant="outline"
                 onClick={handleCancelReplace}
-                className="rounded-md border px-4 py-2 text-sm font-medium"
               >
                 Cancelar
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={handleConfirmReplace}
-                className="rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white"
               >
                 Sim, substituir
-              </button>
+              </Button>
             </div>
           </div>
         </div>

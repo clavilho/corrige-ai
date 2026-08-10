@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Button } from "@/components/ui/button";
 import DeleteExamButton from "@/components/delete-buttons/delete-exam-button";
 import { connectDatabase } from "@/lib/database";
 import { currentUserId } from "@/lib/session";
@@ -13,12 +14,9 @@ export default async function ExamsPage() {
     <div>
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold">Minhas provas</h2>
-        <Link
-          href="/exams/form"
-          className="rounded-xl bg-[#006F72] px-5 py-2.5 font-semibold text-white hover:brightness-105"
-        >
+        <Button render={<Link href="/exams/form" />}>
           + Nova prova
-        </Link>
+        </Button>
       </div>
  
       <div className="mt-6 space-y-4">
@@ -39,12 +37,9 @@ export default async function ExamsPage() {
               </div>
  
               <div className="flex items-center gap-4">
-                <Link
-                  className="text-sm font-semibold text-teal-800"
-                  href={`/exams/${exam._id.toString()}`}
-                >
+                <Button variant="link" render={<Link href={`/exams/${exam._id.toString()}`} />}>
                   Gabarito
-                </Link>
+                </Button>
  
                 <DeleteExamButton examId={exam._id.toString()} examTitle={exam.title} />
               </div>

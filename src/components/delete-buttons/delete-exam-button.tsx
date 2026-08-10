@@ -3,6 +3,7 @@
 import React, { useRef, useState } from "react";
 import ConfirmDialog from "@/components/confirm-dialog";
 import { deleteExam } from "@/features/exams/actions";
+import { Button } from "@/components/ui/button";
 
 export default function DeleteExamButton({
   examId,
@@ -64,9 +65,10 @@ export default function DeleteExamButton({
           onConfirm={onConfirm}
         >
           {/* Trigger button: mostra loader quando loading === true */}
-          <button
+          <Button
             type="button"
-            className="inline-flex w-full items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-semibold border border-red-200 text-red-700 bg-white hover:bg-red-50 transition disabled:opacity-60 sm:w-auto"
+            variant="destructive"
+            className="w-full sm:w-auto"
             aria-label={`Excluir prova ${examId}`}
             disabled={loading}
           >
@@ -86,7 +88,7 @@ export default function DeleteExamButton({
             ) : (
               <>Excluir</>
             )}
-          </button>
+          </Button>
         </ConfirmDialog>
       </form>
     </>

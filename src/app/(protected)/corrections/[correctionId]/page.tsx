@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Button } from "@/components/ui/button";
 import { notFound } from "next/navigation";
 import { CorrectionModel } from "@/features/corrections/correction.model";
 import { ExamModel } from "@/features/exams/exam.model";
@@ -44,31 +45,10 @@ const unidentified =
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <Link  href="/corrections"
-        className="
-          inline-flex
-          items-center
-          gap-2
-          rounded-xl
-          border
-          border-slate-200
-          bg-white
-          px-4
-          py-2
-          text-sm
-          font-medium
-          text-slate-700
-          shadow-sm
-          transition-all
-          duration-200
-          hover:-translate-x-1
-          hover:border-[#006F72]
-          hover:bg-[#EAF7F7]
-          hover:text-[#006F72]
-        ">
-          <ArrowLeft className="h-4 w-4"/>
-             Voltar ao histórico
-          </Link>
+          <Button variant="outline" render={<Link href="/corrections" />}>
+            <ArrowLeft className="h-4 w-4" />
+            Voltar ao histórico
+          </Button>
           <h1 className="mt-4 text-3xl font-bold">{exam?.title ?? "Resultado da correção"}</h1>
           <p className="mt-1 text-slate-600">
             {correction.studentName || "Aluno não informado"} ·{" "}

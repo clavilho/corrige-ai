@@ -3,6 +3,7 @@
 import React, { useRef, useState } from "react";
 import ConfirmDialog from "@/components/confirm-dialog";
 import { deleteCorrection } from "@/features/corrections/actions";
+import { Button } from "@/components/ui/button";
 
 export default function DeleteCorrectionButton({
   correctionId,
@@ -58,9 +59,9 @@ export default function DeleteCorrectionButton({
           onConfirm={onConfirm}
         >
           {/* Trigger button: mostra loader quando loading === true */}
-          <button
+          <Button
             type="button"
-            className="inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold border border-red-200 text-red-700 bg-white hover:bg-red-50 transition disabled:opacity-60"
+            variant="destructive"
             aria-label={`Excluir correção ${correctionId}`}
             disabled={loading}
           >
@@ -80,7 +81,7 @@ export default function DeleteCorrectionButton({
             ) : (
               <>Excluir</>
             )}
-          </button>
+          </Button>
         </ConfirmDialog>
       </form>
     </>

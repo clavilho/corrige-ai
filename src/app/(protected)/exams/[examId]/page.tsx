@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Button } from "@/components/ui/button";
 import { notFound } from "next/navigation";
 import { AnswerKeyEditor } from "@/components/answer-key-editor";
 import { connectDatabase } from "@/lib/database";
@@ -17,9 +18,9 @@ export default async function ExamDetailPage({
   if (!exam) notFound();
   return (
     <div>
-      <Link href="/exams" className="text-sm text-teal-800">
+      <Button variant="link" render={<Link href="/exams" />} className="px-0">
         ← Voltar às provas
-      </Link>
+      </Button>
       <h1 className="mt-4 text-3xl font-bold">{(exam as any).title}</h1>
       <p className="mt-1 text-slate-600">Defina uma resposta correta para cada questão.</p>
       <div className="mt-6">

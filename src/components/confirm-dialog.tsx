@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
 
 type ConfirmDialogProps = {
   title?: string;
@@ -83,22 +84,22 @@ export default function ConfirmDialog({
             )}
 
             <div className="mt-6 flex justify-end gap-3">
-              <button
+              <Button
+                variant="outline"
                 onClick={() => setOpen(false)}
-                className="rounded-md border px-4 py-2 text-sm font-medium cursor-pointer"
                 disabled={loading}
               >
                 {cancelLabel}
-              </button>
+              </Button>
 
-              <button
+              <Button
                 ref={confirmRef}
+                variant="destructive"
                 onClick={handleConfirm}
-                className="rounded-md bg-red-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60 cursor-pointer"
                 disabled={loading}
               >
                 {loading ? "Aguarde..." : confirmLabel}
-              </button>
+              </Button>
             </div>
           </div>
         </div>
