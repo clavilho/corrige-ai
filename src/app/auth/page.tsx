@@ -3,20 +3,8 @@ import { AuthPanel } from "@/components/auth-panel";
 import { currentUserId } from "@/lib/session";
 import { redirect } from "next/navigation";
 
-export default async function AuthPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ error?: string }>;
-}) {
-  const { error } = await searchParams;
-  const message =
-    error === "credenciais"
-      ? "E-mail ou senha inválidos."
-      : error === "email"
-        ? "Este e-mail já está cadastrado."
-        : "";
-
-  if ((await currentUserId())) redirect("/dashboard");
+export default async function AuthPage() {
+  if (await currentUserId()) redirect("/dashboard");
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-[#fcfbf7] px-4 py-12">
@@ -30,7 +18,7 @@ export default async function AuthPage({
           </span>
           CorrigeAI
         </Link>
-        <AuthPanel message={message} />
+        <AuthPanel />
       </div>
     </main>
   );
