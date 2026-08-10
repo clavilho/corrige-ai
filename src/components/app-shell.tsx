@@ -45,9 +45,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
           <nav className="ml-auto hidden items-center gap-1 md:flex">
             {navigation.map(({ href, label }) => (
-              <Button variant="ghost">
+              <Button variant="ghost" key={href}>
                 <Link
-                  key={href}
                   href={href}
                 >
                   {label}

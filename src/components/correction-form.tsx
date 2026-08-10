@@ -2,11 +2,19 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Camera, Upload } from "lucide-react";
+import { Camera, Upload, LoaderCircle } from "lucide-react";
 import { createCorrection } from "@/features/corrections/actions";
 import imageCompression from "browser-image-compression";
-import { LoaderCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Field, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface Exam {
   id: string;
@@ -166,76 +174,33 @@ export function CorrectionForm({ exams, onImageSelected }: CorrectionFormProps) 
 
     <form onSubmit={handleSubmit} className="space-y-6">
       {/* PROVA */}
-      <div>
-        <label
-          htmlFor="exam"
-          className="
-            mb-2 block
-            text-sm
-            font-semibold
-            text-slate-800
-          "
-        >
-          Prova
-        </label>
-
-        <select
-          id="exam"
-          value={selectedExamId}
-          onChange={(e) => setSelectedExamId(e.target.value)}
-          className="
-            w-full
-            rounded-xl
-            border
-            border-slate-200
-            bg-white
-            px-4
-            py-3
-            outline-none
-            focus:border-[#1E7F84]
-          "
-        >
-          <option value="">Selecione a prova</option>
-
-          {exams.map((exam) => (
-            <option key={exam.id} value={exam.id}>
-              {exam.title}
-            </option>
-          ))}
-        </select>
-      </div>
+      <Field>
+        <FieldLabel htmlFor="exam">Prova</FieldLabel>
+        <Select value={selectedExamId} onValueChange={(value) => setSelectedExamId(value)}>
+          <SelectTrigger id="exam" className="w-full">
+            <SelectValue placeholder="Selecione a prova" />
+          </SelectTrigger>
+          <SelectContent>
+            {exams.map((exam) => (
+              <SelectItem key={exam.id} value={exam.id}>
+                {exam.title}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Field>
 
       {/* ALUNO */}
-      <div>
-        <label
-          htmlFor="studentName"
-          className="
-            mb-2 block
-            text-sm
-            font-semibold
-            text-slate-800
-          "
-        >
-          Nome do aluno
-        </label>
-
-        <input
+      <Field>
+        <FieldLabel htmlFor="studentName">Nome do aluno</FieldLabel>
+        <Input
           id="studentName"
+          type="text"
           value={studentName}
           onChange={(e) => setStudentName(e.target.value)}
           placeholder="Digite o nome do aluno"
-          className="
-            w-full
-            rounded-xl
-            border
-            border-slate-200
-            px-4
-            py-3
-            outline-none
-            focus:border-[#1E7F84]
-          "
         />
-      </div>
+      </Field>
 
       {/* UPLOAD */}
       <div className="grid grid-cols-2 gap-4">

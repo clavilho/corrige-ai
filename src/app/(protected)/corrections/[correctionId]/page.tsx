@@ -22,32 +22,34 @@ export default async function CorrectionDetailPage({
   const exam = await ExamModel.findOne({ _id: correction.examId, teacherId }).lean();
   const scoreObj = correction.score && typeof correction.score === "object" ? (correction.score as any) : undefined;
   const totalQuestions =
-  exam?.questionCount ??
-  correction.totalQuestions ??
-  scoreObj?.total ??
-  (correction.answers?.length ?? 0);
+    exam?.questionCount ??
+    correction.totalQuestions ??
+    scoreObj?.total ??
+    (correction.answers?.length ?? 0);
 
-const correctAnswers =
-  correction.correctAnswers ??
-  scoreObj?.correct ??
-  (correction.answers ? correction.answers.filter((a: any) => a.markedAnswer === a.correctAnswer).length : 0);
+  const correctAnswers =
+    correction.correctAnswers ??
+    scoreObj?.correct ??
+    (correction.answers ? correction.answers.filter((a: any) => a.markedAnswer === a.correctAnswer).length : 0);
 
-const wrongAnswers =
-  correction.wrongAnswers ??
-  scoreObj?.wrong ??
-  (typeof totalQuestions === "number" ? totalQuestions - correctAnswers : 0);
+  const wrongAnswers =
+    correction.wrongAnswers ??
+    scoreObj?.wrong ??
+    (typeof totalQuestions === "number" ? totalQuestions - correctAnswers : 0);
 
-const unidentified =
-  correction.unidentified ??
-  (correction.answers ? correction.answers.filter((a: any) => !a.markedAnswer).length : 0);
+  const unidentified =
+    correction.unidentified ??
+    (correction.answers ? correction.answers.filter((a: any) => !a.markedAnswer).length : 0);
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <Button variant="outline" render={<Link href="/corrections" />}>
-            <ArrowLeft className="h-4 w-4" />
-            Voltar ao histórico
+          <Button variant="link">
+            <Link href="/corrections" className="flex flex-row gap-2 items-center">
+              <ArrowLeft className="h-4 w-4" />
+              Voltar ao histórico
+            </Link>
           </Button>
           <h1 className="mt-4 text-3xl font-bold">{exam?.title ?? "Resultado da correção"}</h1>
           <p className="mt-1 text-slate-600">

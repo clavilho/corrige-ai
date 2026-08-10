@@ -31,19 +31,21 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-[#fcfbf7]">
       <header className="mx-auto flex max-w-6xl items-center justify-between px-6 py-6">
-          <Image
-      src="/logo-icon.png"
-      alt="CorrigeAI"
-      width={48}
-      height={48}
-      className="h-12 w-12 object-contain"
-      priority
-    />
-    <span className="ml-3 text-lg font-semibold tracking-tight">
-      CorrigeAI
-    </span>
-        <Button render={<Link href="/auth" />}>
-          Entrar
+        <Image
+          src="/logo-icon.png"
+          alt="CorrigeAI"
+          width={48}
+          height={48}
+          className="h-12 w-12 object-contain"
+          priority
+        />
+        <span className="ml-3 text-lg font-semibold tracking-tight">
+          CorrigeAI
+        </span>
+        <Button>
+          <Link href="/auth">
+            Entrar
+          </Link>
         </Button>
       </header>
       <section className="mx-auto grid max-w-6xl items-center gap-10 px-6 pb-16 pt-8 lg:grid-cols-2">
@@ -57,11 +59,15 @@ export default function Home() {
             completo em segundos.
           </p>
           <div className="flex flex-wrap gap-3">
-            <Button size="lg" render={<Link href="/auth" />}>
-              Começar agora
+            <Button size="lg">
+              <Link href="/auth">
+                Começar agora
+              </Link>
             </Button>
-            <Button variant="outline" size="lg" render={<Link href="/dashboard" />}>
-              Ver painel
+            <Button variant="outline" size="lg">
+              <Link href="/dashboard">
+                Ver painel
+              </Link>
             </Button>
           </div>
         </div>

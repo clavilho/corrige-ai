@@ -50,8 +50,10 @@ export default async function CorrectionsPage() {
                   <p className="text-xs text-slate-500">nota</p>
                 </div>
 
-                <Button variant="outline" size="sm" render={<Link href={`/corrections/${correction._id.toString()}`} />}>
-                  Detalhes
+                <Button variant="outline" size="sm">
+                  <Link href={`/corrections/${correction._id.toString()}`}>
+                    Detalhes
+                  </Link>
                 </Button>
 
                 <DeleteCorrectionButton

@@ -9,16 +9,18 @@ export default async function ExamsPage() {
   const teacherId = await currentUserId();
   await connectDatabase();
   const exams = await ExamModel.find({ teacherId }).sort({ createdAt: -1 }).lean();
- 
+
   return (
     <div>
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold">Minhas provas</h2>
-        <Button render={<Link href="/exams/form" />}>
-          + Nova prova
+        <Button>
+          <Link href="/exams/form">
+            + Nova prova
+          </Link>
         </Button>
       </div>
- 
+
       <div className="mt-6 space-y-4">
         {exams.length === 0 ? (
           <p className="text-slate-600">Nenhuma prova criada ainda.</p>
@@ -35,12 +37,14 @@ export default async function ExamsPage() {
                   {exam.questionCount} questões
                 </p>
               </div>
- 
+
               <div className="flex items-center gap-4">
-                <Button variant="link" render={<Link href={`/exams/${exam._id.toString()}`} />}>
-                  Gabarito
+                <Button variant="link">
+                  <Link href={`/exams/${exam._id.toString()}`}>
+                    Gabarito
+                  </Link>
                 </Button>
- 
+
                 <DeleteExamButton examId={exam._id.toString()} examTitle={exam.title} />
               </div>
             </article>
