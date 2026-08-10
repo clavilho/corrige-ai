@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import {
   FileText,
   GraduationCap,
@@ -21,15 +22,28 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-[#fcfbf7]">
       <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/90 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center gap-4 px-4 py-3">
-          <Link
-            href="/dashboard"
-            className="flex items-center gap-2 font-semibold"
-          >
-            <span className="grid size-8 place-items-center rounded-lg bg-[#007782] text-white">
-              <GraduationCap className="size-4" />
-            </span>
-            <span>CorrigeAI</span>
+          <Link href="/dashboard" className="flex items-center gap-3 font-semibold">
+            {/* versão completa do logo (desktop) */}
+            <div className="hidden md:flex items-center gap-3">
+             <Image
+          src="/logo.png"
+          alt="Corrige AI"
+          width={180}
+          height={80}
+          className="h-auto w-[180px]"
+          priority
+        />
+            </div>
+
+            {/* versão só-ícone (mobile) */}
+            <div className="flex md:hidden items-center">
+              <Image src="/logo-icon.png" alt="Corrige AI" width={40} height={40} priority />
+            </div>
+
+            {/* Mantém o texto para leitores de tela — se quiser esconder visualmente use sr-only */}
+            <span className="sr-only">Corrige AI</span>
           </Link>
+
           <nav className="ml-auto hidden items-center gap-1 md:flex">
             {navigation.map(({ href, label }) => (
               <Link
@@ -41,6 +55,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </Link>
             ))}
           </nav>
+
           <form action={signOut} className="ml-auto md:ml-0">
             <button className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-slate-600 hover:bg-slate-100">
               <LogOut className="size-4" />
@@ -48,6 +63,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </button>
           </form>
         </div>
+
         <nav className="flex gap-1 overflow-x-auto border-t border-slate-200 px-3 py-2 md:hidden">
           {navigation.map(({ href, label, icon: Icon }) => (
             <Link
@@ -61,6 +77,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           ))}
         </nav>
       </header>
+
       <main className="mx-auto max-w-6xl px-4 py-8">{children}</main>
     </div>
   );

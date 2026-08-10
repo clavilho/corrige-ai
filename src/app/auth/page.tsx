@@ -1,4 +1,6 @@
 import Link from "next/link";
+import Image from "next/image";
+
 import { AuthPanel } from "@/components/auth-panel";
 import { currentUserId } from "@/lib/session";
 import { redirect } from "next/navigation";
@@ -13,10 +15,14 @@ export default async function AuthPage() {
           href="/"
           className="mb-6 flex items-center justify-center gap-2 text-lg font-semibold"
         >
-          <span className="grid size-9 place-items-center rounded-lg bg-[#007782] text-white">
-            ⌂
-          </span>
-          CorrigeAI
+          <Image
+            src="/logo.png"
+            alt="CorrigeAI"
+            width={260}
+            height={120}
+            className="h-auto w-[260px]"
+            priority
+          />
         </Link>
         <AuthPanel />
       </div>
