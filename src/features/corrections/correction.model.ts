@@ -1,32 +1,59 @@
-import { InferSchemaType, Model, Schema, model, models } from "mongoose";
+import mongoose from "mongoose";
 
-const answerSchema = new Schema(
+const DetectedAnswerSchema = new mongoose.Schema(
   {
-    questionNumber: Number,
-    markedAnswer: { type: String, default: null },
-    correctAnswer: String,
-    isCorrect: Boolean,
+    question: { type: Number, required: true },
+    answer: { type: String, default: null },
   },
   { _id: false },
 );
-const correctionSchema = new Schema(
-  {
-    teacherId: { type: Schema.Types.ObjectId, required: true, index: true },
-    examId: { type: Schema.Types.ObjectId, required: true, index: true },
-    studentName: { type: String, default: "", trim: true, maxlength: 120 },
-    imageDataUrl: { type: String, default: null },
-    totalQuestions: Number,
-    correctAnswers: Number,
-    wrongAnswers: Number,
-    unidentified: Number,
-    score: Number,
-    warnings: { type: [String], default: [] },
-    answers: { type: [answerSchema], default: [] },
-  },
-  { timestamps: true },
-);
-correctionSchema.index({ teacherId: 1, createdAt: -1 });
 
-export type Correction = InferSchemaType<typeof correctionSchema>;
-export const CorrectionModel: Model<Correction> =
-  models.Correction ?? model<Correction>("Correction", correctionSchema);
+const AnswerRowSchema = new mongoose.Schema(
+  {
+    questionNumber: { type: Number, required: true },
+    correctAnswer: { type: String, required: true },
+    markedAnswer: { type: String, default: null },
+    isCorrect: { type: Boolean, required: true },
+  },
+  { _id: false },
+);
+
+const CorrectionSchema = new mongoose.Schema({
+  teacherId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+  examId: { type: mongoose.Schema.Types.ObjectId, ref: "Exam", required: true },
+  studentName: { type: String, required: true },
+
+  // imagem como dataURL (poderia ser otimizado posteriormente)
+  imageDataUrl: { type: String, required: true },
+
+  // respostas detectadas a partir da imagem
+  detectedAnswers: { type: [DetectedAnswerSchema], default: [] },
+
+  // detalhe por questão (compara com gabarito)
+  answers: { type: [AnswerRowSchema], default: [] },
+
+  // avisos gerados pela leitura
+  warnings: { type: [String], default: [] },
+
+  // métricas
+  totalQuestions: { type: Number, default: 0 },
+  correctAnswers: { type: Number, default: 0 },
+  unidentified: { type: Number, default: 0 },
+  wrongAnswers: { type: Number, default: 0 },
+
+  // notas
+  // score: nota oficial (baseada em totalPoints quando disponível)
+  score: { type: Number, default: 0 },
+  // legacyScore: nota no padrão antigo (0..10) para rastreio/comparação
+  legacyScore: { type: Number, default: 0 },
+
+  // referência do total usado para cálculo
+  totalPoints: { type: Number, default: 100 },
+
+  createdAt: { type: Date, default: () => new Date() },
+});
+
+// Se já existe o model em runtime, reusar (hot reload)
+export const CorrectionModel =
+  (mongoose.models && (mongoose.models.Correction as mongoose.Model<any>)) ||
+  mongoose.model("Correction", CorrectionSchema);
