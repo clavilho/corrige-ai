@@ -1,32 +1,76 @@
-import { InferSchemaType, Model, Schema, model, models } from "mongoose";
+import mongoose from "mongoose";
 
-const answerSchema = new Schema(
+export type DetectedAnswer = { question: number; answer: string | null };
+export type AnswerRow = {
+  questionNumber: number;
+  correctAnswer: string;
+  markedAnswer?: string | null;
+  isCorrect: boolean;
+};
+
+export interface ICorrection {
+  teacherId: mongoose.Types.ObjectId;
+  examId: mongoose.Types.ObjectId;
+  studentName: string;
+  imageDataUrl: string;
+  detectedAnswers: DetectedAnswer[];
+  answers: AnswerRow[];
+  warnings: string[];
+  totalQuestions: number;
+  correctAnswers: number;
+  unidentified: number;
+  wrongAnswers: number;
+  // score: oficial (baseado em totalPoints), legacyScore: 0..10
+  score: number;
+  legacyScore: number;
+  totalPoints: number;
+  createdAt: Date;
+}
+
+const DetectedAnswerSchema = new mongoose.Schema(
   {
-    questionNumber: Number,
-    markedAnswer: { type: String, default: null },
-    correctAnswer: String,
-    isCorrect: Boolean,
+    question: { type: Number, required: true },
+    answer: { type: String, default: null },
   },
   { _id: false },
 );
-const correctionSchema = new Schema(
-  {
-    teacherId: { type: Schema.Types.ObjectId, required: true, index: true },
-    examId: { type: Schema.Types.ObjectId, required: true, index: true },
-    studentName: { type: String, default: "", trim: true, maxlength: 120 },
-    imageDataUrl: { type: String, default: null },
-    totalQuestions: Number,
-    correctAnswers: Number,
-    wrongAnswers: Number,
-    unidentified: Number,
-    score: Number,
-    warnings: { type: [String], default: [] },
-    answers: { type: [answerSchema], default: [] },
-  },
-  { timestamps: true },
-);
-correctionSchema.index({ teacherId: 1, createdAt: -1 });
 
-export type Correction = InferSchemaType<typeof correctionSchema>;
-export const CorrectionModel: Model<Correction> =
-  models.Correction ?? model<Correction>("Correction", correctionSchema);
+const AnswerRowSchema = new mongoose.Schema(
+  {
+    questionNumber: { type: Number, required: true },
+    correctAnswer: { type: String, required: true },
+    markedAnswer: { type: String, default: null },
+    isCorrect: { type: Boolean, required: true },
+  },
+  { _id: false },
+);
+
+const CorrectionSchema = new mongoose.Schema<ICorrection>({
+  teacherId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+  examId: { type: mongoose.Schema.Types.ObjectId, ref: "Exam", required: true },
+  studentName: { type: String, required: true },
+
+  imageDataUrl: { type: String, required: true },
+
+  detectedAnswers: { type: [DetectedAnswerSchema], default: [] },
+  answers: { type: [AnswerRowSchema], default: [] },
+
+  warnings: { type: [String], default: [] },
+
+  totalQuestions: { type: Number, default: 0 },
+  correctAnswers: { type: Number, default: 0 },
+  unidentified: { type: Number, default: 0 },
+  wrongAnswers: { type: Number, default: 0 },
+
+  score: { type: Number, default: 0 },
+  legacyScore: { type: Number, default: 0 },
+
+  totalPoints: { type: Number, default: 100 },
+
+  createdAt: { type: Date, default: () => new Date() },
+});
+
+// export typed model (handles hot reload in dev)
+export const CorrectionModel =
+  (mongoose.models.Correction as mongoose.Model<ICorrection & mongoose.Document>) ||
+  mongoose.model<ICorrection & mongoose.Document>("Correction", CorrectionSchema);

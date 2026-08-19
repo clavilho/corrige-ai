@@ -96,14 +96,8 @@ Formato obrigatório:
 }
 `;
 
-  console.log("🤖 Enviando imagem para Gemini...");
-    const models = await ai.models.list();
-
-    console.log(models);
   const response = await ai.models.generateContent({
-    
     model: process.env.GEMINI_MODEL ?? "gemini-3.6-flash",
-
     contents: [
       {
         inlineData: {
@@ -115,7 +109,6 @@ Formato obrigatório:
         text: prompt,
       },
     ],
-
     config: {
       responseMimeType: "application/json",
     },
@@ -125,36 +118,30 @@ Formato obrigatório:
     throw new Error("Gemini não retornou conteúdo.");
   }
 
-  console.log("✅ Resposta Gemini recebida");
-
   const json = response.text
     .replace(/```json/g, "")
     .replace(/```/g, "")
     .trim();
-
-  console.log(json);
 
   const reading = readingSchema.parse(JSON.parse(json));
 
   return {
     detected: reading.answers.map((item) => ({
       question: item.question,
-
-      answer:
-        item.answer && alternatives.includes(item.answer.toUpperCase())
-          ? item.answer.toUpperCase()
-          : null,
+      answer: item.answer
+        ? String(item.answer).trim().toUpperCase().slice(0, 1)
+        : null,
     })),
 
     warnings: [
       reading.image_quality === "ruim"
         ? "A qualidade da imagem está baixa; confira o resultado manualmente."
         : "",
-
       reading.notes ?? "",
     ].filter(Boolean),
   };
 }
+
 export async function createCorrection(input: unknown) {
   console.log("🚀 createCorrection iniciou");
 
@@ -185,7 +172,10 @@ export async function createCorrection(input: unknown) {
     throw new Error("Prova não encontrada.");
   }
 
-  if (exam.answerKey.length !== exam.questionCount) {
+  if (
+    !Array.isArray(exam.answerKey) ||
+    exam.answerKey.length !== exam.questionCount
+  ) {
     throw new Error("Cadastre o gabarito completo antes de corrigir.");
   }
 
@@ -205,16 +195,39 @@ export async function createCorrection(input: unknown) {
   console.log("✅ Leitura Gemini:");
   console.log(reading);
 
-  const result = scoreAnswers(exam.answerKey, reading.detected);
+  // chama a função de scoring passando totalPoints e questionCount
+  const totalPoints =
+    typeof (exam as any).totalPoints === "number"
+      ? (exam as any).totalPoints
+      : typeof (exam as any).examGrade === "number"
+        ? (exam as any).examGrade
+        : 100;
 
-  console.log("📊 Resultado da correção:");
-  console.log(result);
+  const scoreResult = scoreAnswers(
+    exam.answerKey,
+    reading.detected as DetectedAnswer[],
+    {
+      totalPoints,
+      questionCount:
+        typeof exam.questionCount === "number"
+          ? exam.questionCount
+          : exam.answerKey.length,
+    },
+  );
 
-  if (result.unidentified) {
+  console.log("📊 Resultado do scoring:", scoreResult);
+
+  if (scoreResult.unidentified) {
     reading.warnings.push(
-      `${result.unidentified} questão(ões) não identificada(s).`,
+      `${scoreResult.unidentified} questão(ões) não identificada(s).`,
     );
   }
+
+  // prefira finalScore (baseado em totalPoints) quando disponível; senão use legacyScore
+  const finalScore =
+    typeof scoreResult.finalScore === "number"
+      ? scoreResult.finalScore
+      : scoreResult.legacyScore;
 
   const correction = await CorrectionModel.create({
     teacherId,
@@ -224,17 +237,38 @@ export async function createCorrection(input: unknown) {
 
     warnings: reading.warnings,
 
-    ...result,
+    // detalhe por questão
+    answers: scoreResult.answers, // este campo está definido no schema agora
+
+    // métricas
+    totalQuestions: scoreResult.totalQuestions,
+    correctAnswers: scoreResult.correctAnswers,
+    unidentified: scoreResult.unidentified,
+    wrongAnswers: scoreResult.wrongAnswers,
+
+    // notas
+    score: finalScore, // nota "oficial"
+    legacyScore: scoreResult.legacyScore,
+    totalPoints, // qual foi o total de pontos usado
   });
 
-  console.log("💾 Correção salva:", correction.id);
+  // checagem defensiva para agradar o TS (create normalmente retorna documento)
+  if (!correction) {
+    throw new Error("Erro ao salvar a correção.");
+  }
 
+  const correctionId = (correction._id ?? correction.id).toString();
+
+  console.log("💾 Correção salva:", correctionId);
   revalidatePath("/dashboard");
   revalidatePath("/corrections");
   revalidatePath("/correct");
 
   return {
     correctionId: correction.id,
+    correctCount: scoreResult.correctAnswers,
+    finalScore,
+    legacyScore: scoreResult.legacyScore,
   };
 }
 

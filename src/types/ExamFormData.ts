@@ -4,6 +4,7 @@ export type ExamFormData = {
   subject: string;
   className: string;
   questionCount: number;
+  examGrade: number;
   alternativeCount: number;
 };
 

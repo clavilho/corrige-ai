@@ -16,6 +16,7 @@ const examSchema = new Schema(
     examDate: { type: Date, default: null },
     questionCount: { type: Number, required: true, min: 1, max: 120 },
     alternativeCount: { type: Number, required: true, min: 2, max: 6 },
+    examGrade: { type: Number, required: true, min: 5, max: 100},
     answerKey: { type: [answerSchema], default: [] },
   },
   { timestamps: true },
