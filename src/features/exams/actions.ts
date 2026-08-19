@@ -37,6 +37,7 @@ export async function createExamWithAnswerKey(
     examDate: data.examDate ? new Date(data.examDate) : undefined,
     questionCount: data.questionCount,
     alternativeCount: data.alternativeCount,
+    examGrade: data.examGrade,
     answerKey: answers,
   });
  
