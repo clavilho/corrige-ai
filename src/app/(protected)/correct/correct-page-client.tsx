@@ -11,10 +11,14 @@ interface Exam {
 
 interface CorrectPageClientProps {
   exams: Exam[];
+  initialExamId?: string;
+  initialStudentId?: string;
 }
 
 export default function CorrectPageClient({
   exams,
+  initialExamId = "",
+  initialStudentId = "",
 }: CorrectPageClientProps) {
   const [imageDataUrl, setImageDataUrl] = useState<string | null>(null);
 
