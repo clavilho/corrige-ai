@@ -38,13 +38,14 @@ export async function createClass(formData: FormData) {
       studentCount: 0,
     });
 
-    redirect("/classes");
   } catch (err: any) {
     if (err?.code === 11000)
       throw new Error("Já existe uma turma com esse código.");
     console.error("createClass error:", err);
     throw err;
   }
+  
+  redirect("/classes");
 }
 
 export async function excludeClass(formData: FormData) {

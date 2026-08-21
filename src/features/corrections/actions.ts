@@ -225,13 +225,14 @@ export async function createCorrection(input: unknown) {
   const correction = await CorrectionModel.create({
     teacherId,
     examId: exam.id,
+    studentId: data.studentId,
     studentName: data.studentName,
     imageDataUrl: data.imageDataUrl,
 
     warnings: reading.warnings,
 
     // detalhe por questão
-    answers: scoreResult.answers, // este campo está definido no schema agora
+    answers: scoreResult.answers,
 
     // métricas
     totalQuestions: scoreResult.totalQuestions,

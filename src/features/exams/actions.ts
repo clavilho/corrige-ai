@@ -37,35 +37,15 @@ const examFormSchema = z.object({
 
   examDate: z.string().optional(),
 
-  questionCount: z.coerce
-    .number()
-    .int()
-    .min(1)
-    .max(100),
+  questionCount: z.coerce.number().int().min(1).max(100),
 
-  alternativeCount: z.coerce
-    .number()
-    .int()
-    .min(2)
-    .max(6),
+  alternativeCount: z.coerce.number().int().min(2).max(6),
 
-  examGrade: z.coerce
-    .number()
-    .min(0),
+  examGrade: z.coerce.number().min(0),
 
   answerKey: z.string().min(1, "O gabarito é obrigatório."),
 });
 
-/**
- * Schema de cada questão do gabarito.
- *
- * O Mongo espera:
- *
- * {
- *   questionNumber: 1,
- *   correctAnswer: "A"
- * }
- */
 const answerKeyItemSchema = z.object({
   questionNumber: z.number().int().min(1),
 
@@ -80,9 +60,6 @@ const answerKeyItemSchema = z.object({
  */
 const answerKeySchema = z.array(answerKeyItemSchema);
 
-/**
- * Cria uma prova a partir do FormData enviado pelo formulário.
- */
 export async function createExam(formData: FormData) {
   const teacherId = await currentUserId();
 
@@ -90,9 +67,13 @@ export async function createExam(formData: FormData) {
     redirect("/auth");
   }
 
-  /**
-   * Pegamos os valores do FormData.
-   */
+  const answerKeySchema = z.array(
+    z.object({
+      questionNumber: z.number().int().positive(),
+      correctAnswer: z.string().min(1),
+    }),
+  );
+
   const rawData = {
     title: formData.get("title"),
 
@@ -129,87 +110,38 @@ export async function createExam(formData: FormData) {
     throw new Error("Gabarito inválido.");
   }
 
-  /**
-   * Valida o formato do gabarito.
-   *
-   * Esperamos:
-   *
-   * [
-   *   {
-   *     questionNumber: 1,
-   *     correctAnswer: "A"
-   *   },
-   *   {
-   *     questionNumber: 2,
-   *     correctAnswer: "B"
-   *   }
-   * ]
-   */
   const answerKey = answerKeySchema.parse(parsedAnswers);
 
-  /**
-   * O número de respostas precisa ser igual
-   * ao número de questões da prova.
-   */
   if (answerKey.length !== data.questionCount) {
     throw new Error(
       "O gabarito precisa ter uma resposta para todas as questões.",
     );
   }
 
-  /**
-   * Verifica se todas as questões existem
-   * exatamente uma vez.
-   */
-  const questionNumbers = answerKey.map(
-    (item) => item.questionNumber,
-  );
+  const questionNumbers = answerKey.map((item) => item.questionNumber);
 
   const uniqueQuestionNumbers = new Set(questionNumbers);
 
   if (uniqueQuestionNumbers.size !== data.questionCount) {
-    throw new Error(
-      "O gabarito possui questões duplicadas ou inválidas.",
-    );
+    throw new Error("O gabarito possui questões duplicadas ou inválidas.");
   }
 
-  /**
-   * Verifica se as questões estão entre 1 e questionCount.
-   */
   const hasInvalidQuestionNumber = answerKey.some(
     (item) =>
-      item.questionNumber < 1 ||
-      item.questionNumber > data.questionCount,
+      item.questionNumber < 1 || item.questionNumber > data.questionCount,
   );
 
   if (hasInvalidQuestionNumber) {
-    throw new Error(
-      "O gabarito possui uma ou mais questões inválidas.",
-    );
+    throw new Error("O gabarito possui uma ou mais questões inválidas.");
   }
 
-  /**
-   * Verifica se as alternativas utilizadas
-   * existem na quantidade configurada na prova.
-   *
-   * Exemplo:
-   *
-   * alternativeCount = 4
-   *
-   * Permitido:
-   * A B C D
-   *
-   * Não permitido:
-   * E F
-   */
   const allowedAlternatives = ["A", "B", "C", "D", "E", "F"].slice(
     0,
     data.alternativeCount,
   );
 
   const hasInvalidAlternative = answerKey.some(
-    (item) =>
-      !allowedAlternatives.includes(item.correctAnswer),
+    (item) => !allowedAlternatives.includes(item.correctAnswer),
   );
 
   if (hasInvalidAlternative) {
@@ -220,30 +152,18 @@ export async function createExam(formData: FormData) {
 
   await connectDatabase();
 
-  /**
-   * Cria a prova.
-   */
   await ExamModel.create({
     teacherId,
 
     classId: data.classId,
 
-    /**
-     * Salvamos o nome da turma como snapshot.
-     *
-     * Assim, mesmo que o nome da turma seja alterado
-     * futuramente, a prova continua mostrando o nome
-     * que existia no momento da criação.
-     */
     className: data.className,
 
     title: data.title,
 
     subject: data.subject,
 
-    examDate: data.examDate
-      ? new Date(data.examDate)
-      : undefined,
+    examDate: data.examDate ? new Date(data.examDate) : undefined,
 
     questionCount: data.questionCount,
 
@@ -314,16 +234,12 @@ export async function createExamWithAnswerKey(
   /**
    * Verifica questões duplicadas.
    */
-  const questionNumbers = answerKey.map(
-    (item) => item.questionNumber,
-  );
+  const questionNumbers = answerKey.map((item) => item.questionNumber);
 
   const uniqueQuestionNumbers = new Set(questionNumbers);
 
   if (uniqueQuestionNumbers.size !== data.questionCount) {
-    throw new Error(
-      "O gabarito possui questões duplicadas ou inválidas.",
-    );
+    throw new Error("O gabarito possui questões duplicadas ou inválidas.");
   }
 
   /**
@@ -335,8 +251,7 @@ export async function createExamWithAnswerKey(
   );
 
   const hasInvalidAlternative = answerKey.some(
-    (item) =>
-      !allowedAlternatives.includes(item.correctAnswer),
+    (item) => !allowedAlternatives.includes(item.correctAnswer),
   );
 
   if (hasInvalidAlternative) {
@@ -360,9 +275,7 @@ export async function createExamWithAnswerKey(
 
     subject: data.subject,
 
-    examDate: data.examDate
-      ? new Date(data.examDate)
-      : undefined,
+    examDate: data.examDate ? new Date(data.examDate) : undefined,
 
     questionCount: data.questionCount,
 
@@ -388,10 +301,7 @@ export async function createExamWithAnswerKey(
 export async function deleteExam(formData: FormData) {
   const id = await teacherId();
 
-  const examId = z
-    .string()
-    .min(1)
-    .parse(formData.get("examId"));
+  const examId = z.string().min(1).parse(formData.get("examId"));
 
   await connectDatabase();
 
@@ -415,4 +325,59 @@ async function teacherId() {
   }
 
   return id;
+}
+
+export async function saveAnswerKey(formData: FormData) {
+  const teacherId = await currentUserId();
+
+  if (!teacherId) {
+    redirect("/auth");
+  }
+
+  const examId = z
+    .string()
+    .min(1)
+    .parse(formData.get("examId"));
+
+  const answersRaw = formData.get("answers");
+
+  if (!answersRaw || typeof answersRaw !== "string") {
+    throw new Error("Gabarito não informado.");
+  }
+
+  let answers: unknown;
+
+  try {
+    answers = JSON.parse(answersRaw);
+  } catch {
+    throw new Error("Gabarito inválido.");
+  }
+
+  const answerKey = answerKeySchema.parse(answers);
+
+  await connectDatabase();
+
+  const exam = await ExamModel.findOne({
+    _id: examId,
+    teacherId,
+  });
+
+  if (!exam) {
+    throw new Error("Prova não encontrada.");
+  }
+
+  if (answerKey.length !== exam.questionCount) {
+    throw new Error(
+      "O gabarito precisa ter uma resposta para todas as questões.",
+    );
+  }
+
+  exam.set("answerKey", answerKey);
+
+  await exam.save();
+
+  revalidatePath("/exams");
+  revalidatePath(`/exams/${examId}`);
+
+  redirect("/exams");
 }

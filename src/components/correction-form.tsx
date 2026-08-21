@@ -149,7 +149,6 @@ export function CorrectionForm({
 
       const imageDataUrl = await convertToBase64(selectedImage);
 
-      console.log("📦 Antes de chamar createCorrection");
 
       const result = await createCorrection({
         examId: selectedExamId,
@@ -160,7 +159,6 @@ export function CorrectionForm({
 
         imageDataUrl,
       });
-      console.log("✅ createCorrection terminou");
 
       router.push(`/corrections/${result.correctionId}`);
     } catch (err) {
