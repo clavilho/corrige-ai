@@ -17,5 +17,13 @@ export default async function CorrectPage() {
     .sort({ createdAt: -1 })
     .lean();
 
-  return <CorrectPageClient exams={exams.map(e => ({ id: e._id.toString(), title: e.title, questionCount: e.questionCount }))} />;
+  return (
+    <CorrectPageClient
+      exams={exams.map((e) => ({
+        id: e._id.toString(),
+        title: e.title,
+        questionCount: e.questionCount,
+      }))}
+    />
+  );
 }

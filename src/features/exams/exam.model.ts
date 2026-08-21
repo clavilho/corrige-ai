@@ -10,13 +10,21 @@ const answerSchema = new Schema(
 const examSchema = new Schema(
   {
     teacherId: { type: Schema.Types.ObjectId, required: true, index: true },
+    classId: {
+      type: Schema.Types.ObjectId,
+      ref: "Class",
+      required: true,
+    },
+    className: {
+      type: String,
+      required: true,
+    },
     title: { type: String, required: true, trim: true, maxlength: 160 },
     subject: { type: String, default: "", trim: true, maxlength: 120 },
-    className: { type: String, default: "", trim: true, maxlength: 120 },
     examDate: { type: Date, default: null },
     questionCount: { type: Number, required: true, min: 1, max: 120 },
     alternativeCount: { type: Number, required: true, min: 2, max: 6 },
-    examGrade: { type: Number, required: true, min: 5, max: 100},
+    examGrade: { type: Number, required: true, min: 5, max: 100 },
     answerKey: { type: [answerSchema], default: [] },
   },
   { timestamps: true },
