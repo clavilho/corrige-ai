@@ -43,7 +43,7 @@ export function CorrectionForm({
 
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  
+
   useEffect(() => {
     async function loadStudents() {
       if (!selectedExamId) {
@@ -79,13 +79,7 @@ export function CorrectionForm({
   }, [selectedExamId]);
 
   async function convertToBase64(file: File): Promise<string> {
-    console.log("Imagem original:");
-
-    console.log({
-      nome: file.name,
-      tamanhoKB: (file.size / 1024).toFixed(2),
-      tamanhoMB: (file.size / 1024 / 1024).toFixed(2),
-    });
+    
 
     const compressed = await imageCompression(file, {
       maxSizeMB: 0.35,
@@ -93,14 +87,6 @@ export function CorrectionForm({
       useWebWorker: true,
       fileType: "image/jpeg",
       initialQuality: 0.75,
-    });
-
-    console.log("Imagem comprimida:");
-
-    console.log({
-      nome: compressed.name,
-      tamanhoKB: (compressed.size / 1024).toFixed(2),
-      tamanhoMB: (compressed.size / 1024 / 1024).toFixed(2),
     });
 
     return new Promise((resolve, reject) => {
@@ -161,11 +147,9 @@ export function CorrectionForm({
     try {
       setLoading(true);
 
-      console.log("Convertendo imagem...");
-
       const imageDataUrl = await convertToBase64(selectedImage);
 
-      console.log("Criando correção...");
+      console.log("📦 Antes de chamar createCorrection");
 
       const result = await createCorrection({
         examId: selectedExamId,
@@ -176,8 +160,7 @@ export function CorrectionForm({
 
         imageDataUrl,
       });
-
-      console.log("Correção criada:", result);
+      console.log("✅ createCorrection terminou");
 
       router.push(`/corrections/${result.correctionId}`);
     } catch (err) {

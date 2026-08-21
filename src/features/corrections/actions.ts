@@ -145,16 +145,8 @@ Formato obrigatório:
 }
 
 export async function createCorrection(input: unknown) {
-  console.log("🚀 createCorrection iniciou");
 
   const data = requestSchema.parse(input);
-
-  console.log("📄 Dados recebidos:", {
-    examId: data.examId,
-    studentId: data.studentId,
-    studentName: data.studentName,
-    imageSize: data.imageDataUrl.length,
-  });
 
   const teacherId = await requireTeacher();
 
@@ -192,16 +184,11 @@ export async function createCorrection(input: unknown) {
     exam.alternativeCount,
   );
 
-  console.log("🤖 Enviando imagem para Gemini");
-
   const reading = await readAnswerSheet(
     data.imageDataUrl,
     exam.questionCount,
     alternatives,
   );
-
-  console.log("✅ Leitura Gemini:");
-  console.log(reading);
 
   // chama a função de scoring passando totalPoints e questionCount
   const totalPoints =
@@ -222,8 +209,6 @@ export async function createCorrection(input: unknown) {
           : exam.answerKey.length,
     },
   );
-
-  console.log("📊 Resultado do scoring:", scoreResult);
 
   if (scoreResult.unidentified) {
     reading.warnings.push(
@@ -260,6 +245,23 @@ export async function createCorrection(input: unknown) {
     totalPoints, // qual foi o total de pontos usado
   });
 
+ await StudentModel.findByIdAndUpdate(
+  data.studentId,
+  {
+    $push: {
+      grades: {
+        examId: exam._id,
+        correctionId: correction._id,
+        score: finalScore,
+        totalPoints,
+        createdAt: new Date(),
+      },
+    },
+  },
+  {
+    new: true,
+  },
+);
   // checagem defensiva para agradar o TS (create normalmente retorna documento)
   if (!correction) {
     throw new Error("Erro ao salvar a correção.");
@@ -267,7 +269,6 @@ export async function createCorrection(input: unknown) {
 
   const correctionId = (correction._id ?? correction.id).toString();
 
-  console.log("💾 Correção salva:", correctionId);
   revalidatePath("/dashboard");
   revalidatePath("/corrections");
   revalidatePath("/correct");
