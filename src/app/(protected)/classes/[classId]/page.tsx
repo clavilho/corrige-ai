@@ -7,6 +7,7 @@ import { ClassModel } from "@/features/classes/class.model";
 import { StudentModel } from "@/features/students/student.model";
 import { CreateStudentForm } from "@/components/create-student-form";
 import DeleteStudentButton from "@/components/delete-buttons/delete-student-button";
+import { ArrowLeft } from "lucide-react";
 
 export default async function ClassDetailPage({
   params,
@@ -49,8 +50,32 @@ export default async function ClassDetailPage({
 
   return (
     <div>
-      <Link href="/classes" className="text-sm text-teal-800">
-        ← Voltar às turmas
+      <Link
+        href="/classes"
+        className="
+                inline-flex
+                items-center
+                gap-2
+                rounded-xl
+                border
+                border-slate-200
+                bg-white
+                px-4
+                py-2
+                text-sm
+                font-medium
+                text-slate-700
+                shadow-sm
+                transition-all
+                duration-200
+                hover:-translate-x-1
+                hover:border-[#006F72]
+                hover:bg-[#EAF7F7]
+                hover:text-[#006F72]
+              "
+      >
+        <ArrowLeft className="h-4 w-4" />
+        Voltar às turmas
       </Link>
 
       <h1 className="mt-4 text-3xl font-bold">

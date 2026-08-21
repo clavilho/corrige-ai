@@ -15,37 +15,54 @@ export default async function CorrectionDetailPage({
   const teacherId = await currentUserId();
   await connectDatabase();
 
-  const correction = await CorrectionModel.findOne({ _id: correctionId, teacherId }).lean();
+  const correction = await CorrectionModel.findOne({
+    _id: correctionId,
+    teacherId,
+  }).lean();
   if (!correction) notFound();
 
-  const exam = await ExamModel.findOne({ _id: correction.examId, teacherId }).lean();
-  const scoreObj = correction.score && typeof correction.score === "object" ? (correction.score as any) : undefined;
+  const exam = await ExamModel.findOne({
+    _id: correction.examId,
+    teacherId,
+  }).lean();
+  const scoreObj =
+    correction.score && typeof correction.score === "object"
+      ? (correction.score as any)
+      : undefined;
   const totalQuestions =
-  exam?.questionCount ??
-  correction.totalQuestions ??
-  scoreObj?.total ??
-  (correction.answers?.length ?? 0);
+    exam?.questionCount ??
+    correction.totalQuestions ??
+    scoreObj?.total ??
+    correction.answers?.length ??
+    0;
 
-const correctAnswers =
-  correction.correctAnswers ??
-  scoreObj?.correct ??
-  (correction.answers ? correction.answers.filter((a: any) => a.markedAnswer === a.correctAnswer).length : 0);
+  const correctAnswers =
+    correction.correctAnswers ??
+    scoreObj?.correct ??
+    (correction.answers
+      ? correction.answers.filter(
+          (a: any) => a.markedAnswer === a.correctAnswer,
+        ).length
+      : 0);
 
-const wrongAnswers =
-  correction.wrongAnswers ??
-  scoreObj?.wrong ??
-  (typeof totalQuestions === "number" ? totalQuestions - correctAnswers : 0);
+  const wrongAnswers =
+    correction.wrongAnswers ??
+    scoreObj?.wrong ??
+    (typeof totalQuestions === "number" ? totalQuestions - correctAnswers : 0);
 
-const unidentified =
-  correction.unidentified ??
-  (correction.answers ? correction.answers.filter((a: any) => !a.markedAnswer).length : 0);
+  const unidentified =
+    correction.unidentified ??
+    (correction.answers
+      ? correction.answers.filter((a: any) => !a.markedAnswer).length
+      : 0);
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <Link  href="/corrections"
-        className="
+          <Link
+            href="/corrections"
+            className="
           inline-flex
           items-center
           gap-2
@@ -65,11 +82,14 @@ const unidentified =
           hover:border-[#006F72]
           hover:bg-[#EAF7F7]
           hover:text-[#006F72]
-        ">
-          <ArrowLeft className="h-4 w-4"/>
-             Voltar ao histórico
+        "
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Voltar ao histórico
           </Link>
-          <h1 className="mt-4 text-3xl font-bold">{exam?.title ?? "Resultado da correção"}</h1>
+          <h1 className="mt-4 text-3xl font-bold">
+            {exam?.title ?? "Resultado da correção"}
+          </h1>
           <p className="mt-1 text-slate-600">
             {correction.studentName || "Aluno não informado"} ·{" "}
             {new Date(correction.createdAt).toLocaleString("pt-BR")}
@@ -93,7 +113,10 @@ const unidentified =
           ["Erros", wrongAnswers],
           ["Não identificadas", unidentified],
         ].map(([label, value]) => (
-          <article key={label} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <article
+            key={label}
+            className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+          >
             <p className="text-sm text-slate-500">{label}</p>
             <p className="mt-1 text-2xl font-bold">{value}</p>
           </article>
@@ -119,7 +142,11 @@ const unidentified =
                   <td className="p-3">{answer.markedAnswer ?? "—"}</td>
                   <td className="p-3">{answer.correctAnswer ?? "—"}</td>
                   <td className="p-3">
-                    <span className={answer.isCorrect ? "text-green-700" : "text-red-700"}>
+                    <span
+                      className={
+                        answer.isCorrect ? "text-green-700" : "text-red-700"
+                      }
+                    >
                       {answer.isCorrect ? "Correta" : "Incorreta"}
                     </span>
                   </td>

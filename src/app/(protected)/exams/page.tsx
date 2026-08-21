@@ -7,8 +7,10 @@ import { ExamModel } from "@/features/exams/exam.model";
 export default async function ExamsPage() {
   const teacherId = await currentUserId();
   await connectDatabase();
-  const exams = await ExamModel.find({ teacherId }).sort({ createdAt: -1 }).lean();
- 
+  const exams = await ExamModel.find({ teacherId })
+    .sort({ createdAt: -1 })
+    .lean();
+
   return (
     <div>
       <div className="flex items-center justify-between">
@@ -20,7 +22,7 @@ export default async function ExamsPage() {
           + Nova prova
         </Link>
       </div>
- 
+
       <div className="mt-6 space-y-4">
         {exams.length === 0 ? (
           <p className="text-slate-600">Nenhuma prova criada ainda.</p>
@@ -31,22 +33,27 @@ export default async function ExamsPage() {
               className="flex flex-wrap items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
             >
               <div className="min-w-0 flex-1">
-                <h3 className="truncate font-semibold text-slate-900">{exam.title}</h3>
+                <h3 className="truncate font-semibold text-slate-900">
+                  {exam.title}
+                </h3>
                 <p className="text-sm text-slate-600">
-                  {exam.subject || "Sem disciplina"} · {exam.className || "Sem turma"} ·{" "}
-                  {exam.questionCount} questões
+                  {exam.subject || "Sem disciplina"} ·{" "}
+                  {exam.className || "Sem turma"} · {exam.questionCount}{" "}
+                  questões
                 </p>
               </div>
- 
+
               <div className="flex items-center gap-4">
                 <Link
-                  className="text-sm font-semibold text-teal-800"
                   href={`/exams/${exam._id.toString()}`}
+                  className="inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold border border-teal-700 text-teal-700 hover:bg-teal-700 hover:text-white transition"
                 >
                   Gabarito
                 </Link>
- 
-                <DeleteExamButton examId={exam._id.toString()} examTitle={exam.title} />
+                <DeleteExamButton
+                  examId={exam._id.toString()}
+                  examTitle={exam.title}
+                />
               </div>
             </article>
           ))

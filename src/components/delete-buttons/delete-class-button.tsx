@@ -6,7 +6,7 @@ import { excludeClass } from "@/features/classes/actions";
 
 export default function DeleteClassButton({
   classId,
-  className
+  className,
 }: {
   classId: string;
   className: string;
@@ -54,7 +54,7 @@ export default function DeleteClassButton({
     <>
       <form ref={formRef} action={excludeClass} className="m-0">
         <input type="hidden" name="classId" value={classId} />
-        
+
         <ConfirmDialog
           title="Confirmar exclusão"
           description={`Tem certeza que deseja excluir a turma ${className ?? ""}? Todos os alunos cadastrados tambem serão excluidos. Esta ação é irreversível.`}
@@ -65,7 +65,7 @@ export default function DeleteClassButton({
           {/* Trigger button: mostra loader quando loading === true */}
           <button
             type="button"
-            className="inline-flex w-full items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-semibold border border-red-200 text-red-700 bg-white hover:bg-red-50 transition disabled:opacity-60 sm:w-auto"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-semibold border border-red-200 text-red-700 bg-white hover:bg-red-50 transition disabled:opacity-60 sm:w-auto "
             aria-label={`Excluir turma ${classId}`}
             disabled={loading}
           >

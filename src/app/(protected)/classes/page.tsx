@@ -2,7 +2,7 @@ import Link from "next/link";
 import { connectDatabase } from "@/lib/database";
 import { currentUserId } from "@/lib/session";
 import { ClassModel } from "@/features/classes/class.model";
-import DeleteClassButton from "@/components/delete-buttons/delete-class-button"
+import DeleteClassButton from "@/components/delete-buttons/delete-class-button";
 
 export default async function ClassPage() {
   const teacherId = await currentUserId();
@@ -44,13 +44,14 @@ export default async function ClassPage() {
               </div>
 
               <div className="flex items-center gap-4">
+
                 <Link
-                  className="text-sm font-semibold text-teal-800"
                   href={`/classes/${classItem._id.toString()}`}
+                  className="inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold border border-teal-700 text-teal-700 hover:bg-teal-700 hover:text-white transition"
                 >
                   Editar Turma
                 </Link>
-
+                
                 <DeleteClassButton
                   classId={classItem._id.toString()}
                   className={classItem.name}
