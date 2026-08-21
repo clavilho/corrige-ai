@@ -25,6 +25,24 @@ export function NewExamForm({ classes }: NewExamFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  /*
+   * Quantidade de questões que já possuem uma resposta.
+   */
+  const answeredQuestions =
+    typeof questionCount === "number"
+      ? Array.from({ length: questionCount }, (_, index) => index + 1).filter(
+          (question) => Boolean(answerKey[question]),
+        ).length
+      : 0;
+
+  /*
+   * Verifica se todas as questões foram respondidas.
+   */
+  const isAnswerKeyComplete =
+    typeof questionCount === "number" &&
+    questionCount > 0 &&
+    answeredQuestions === questionCount;
+
   function handleQuestionCountChange(value: string) {
     if (value === "") {
       setQuestionCount("");
@@ -78,6 +96,8 @@ export function NewExamForm({ classes }: NewExamFormProps) {
       ...current,
       [question]: answer,
     }));
+
+    setError(null);
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -92,6 +112,11 @@ export function NewExamForm({ classes }: NewExamFormProps) {
 
     if (!selectedClassId) {
       setError("Selecione uma turma.");
+      return;
+    }
+
+    if (!isAnswerKeyComplete) {
+      setError("Preencha o gabarito de todas as questões.");
       return;
     }
 
@@ -112,19 +137,19 @@ export function NewExamForm({ classes }: NewExamFormProps) {
     }
 
     formData.set("classId", selectedClass.id);
+
     formData.set("className", selectedClass.name);
 
     formData.set("questionCount", String(questionCount));
 
     formData.set("alternativeCount", String(alternativeCount));
 
-    const answers = Array.from(
-      { length: questionCount },
-      (_, index) => answerKey[index + 1] ?? "",
-    );
+    const answers = Array.from({ length: questionCount }, (_, index) => ({
+      questionNumber: index + 1,
+      correctAnswer: answerKey[index + 1] ?? "",
+    }));
 
     formData.set("answerKey", JSON.stringify(answers));
-
     try {
       setIsSubmitting(true);
 
@@ -394,9 +419,13 @@ export function NewExamForm({ classes }: NewExamFormProps) {
                 "
               >
                 <option value={2}>2 alternativas</option>
+
                 <option value={3}>3 alternativas</option>
+
                 <option value={4}>4 alternativas</option>
+
                 <option value={5}>5 alternativas</option>
+
                 <option value={6}>6 alternativas</option>
               </select>
             </div>
@@ -523,6 +552,20 @@ export function NewExamForm({ classes }: NewExamFormProps) {
               );
             })}
         </div>
+
+        {/* Progresso do gabarito */}
+        <div className="mt-5 flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+          <span className="text-sm text-slate-600">Progresso do gabarito</span>
+
+          <span
+            className={`text-sm font-semibold ${
+              isAnswerKeyComplete ? "text-[#006F72]" : "text-slate-700"
+            }`}
+          >
+            {answeredQuestions} de{" "}
+            {typeof questionCount === "number" ? questionCount : 0} questões
+          </span>
+        </div>
       </section>
 
       {/* ========================================================= */}
@@ -576,23 +619,25 @@ export function NewExamForm({ classes }: NewExamFormProps) {
 
         <button
           type="submit"
-          disabled={isSubmitting}
-          className="
+          disabled={isSubmitting || !isAnswerKeyComplete}
+          className={`
             rounded-xl
-            bg-[#006F72]
             px-6
             py-3
             text-sm
             font-semibold
-            text-white
             shadow-sm
             transition
-            hover:bg-[#005B5E]
-            disabled:cursor-not-allowed
-            disabled:opacity-50
-          "
+            ${
+              isAnswerKeyComplete && !isSubmitting
+                ? "bg-[#006F72] text-white hover:bg-[#005B5E]"
+                : "cursor-not-allowed bg-slate-200 text-slate-400"
+            }
+          `}
         >
-          {isSubmitting ? "Criando prova..." : "Criar prova"}
+          {isSubmitting
+            ? "Criando prova..."
+            : `Criar prova (${answeredQuestions}/${typeof questionCount === "number" ? questionCount : 0})`}
         </button>
       </div>
     </form>

@@ -11,7 +11,15 @@ export type AnswerRow = {
 export interface ICorrection {
   teacherId: mongoose.Types.ObjectId;
   examId: mongoose.Types.ObjectId;
-  studentName: string;
+  studentName: {
+    type: String;
+    required: true;
+  };
+  studentId: {
+    type: mongoose.Schema.Types.ObjectId;
+    ref: "Student";
+    required: true;
+  };
   imageDataUrl: string;
   detectedAnswers: DetectedAnswer[];
   answers: AnswerRow[];
@@ -46,7 +54,11 @@ const AnswerRowSchema = new mongoose.Schema(
 );
 
 const CorrectionSchema = new mongoose.Schema<ICorrection>({
-  teacherId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+  teacherId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    required: true,
+  },
   examId: { type: mongoose.Schema.Types.ObjectId, ref: "Exam", required: true },
   studentName: { type: String, required: true },
 
@@ -72,5 +84,10 @@ const CorrectionSchema = new mongoose.Schema<ICorrection>({
 
 // export typed model (handles hot reload in dev)
 export const CorrectionModel =
-  (mongoose.models.Correction as mongoose.Model<ICorrection & mongoose.Document>) ||
-  mongoose.model<ICorrection & mongoose.Document>("Correction", CorrectionSchema);
+  (mongoose.models.Correction as mongoose.Model<
+    ICorrection & mongoose.Document
+  >) ||
+  mongoose.model<ICorrection & mongoose.Document>(
+    "Correction",
+    CorrectionSchema,
+  );

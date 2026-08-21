@@ -1,4 +1,3 @@
-// src/app/correct/page.tsx
 import { connectDatabase } from "@/lib/database";
 import { currentUserId } from "@/lib/session";
 import { ExamModel } from "@/features/exams/exam.model";
@@ -6,6 +5,7 @@ import CorrectPageClient from "./correct-page-client";
 
 export default async function CorrectPage() {
   const teacherId = await currentUserId();
+
   await connectDatabase();
 
   const exams = await ExamModel.find({
@@ -19,10 +19,10 @@ export default async function CorrectPage() {
 
   return (
     <CorrectPageClient
-      exams={exams.map((e) => ({
-        id: e._id.toString(),
-        title: e.title,
-        questionCount: e.questionCount,
+      exams={exams.map((exam) => ({
+        id: exam._id.toString(),
+        title: exam.title,
+        questionCount: exam.questionCount,
       }))}
     />
   );

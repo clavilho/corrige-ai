@@ -9,11 +9,13 @@ import { connectDatabase } from "@/lib/database";
 import { currentUserId } from "@/lib/session";
 
 import { ExamModel } from "@/features/exams/exam.model";
+import { StudentModel } from "@/features/students/student.model";
 import { CorrectionModel } from "./correction.model";
 import { DetectedAnswer, scoreAnswers } from "./scoring";
 
 const requestSchema = z.object({
   examId: z.string().min(1),
+  studentId: z.string().min(1),
   studentName: z.string().trim().min(1).max(120),
   imageDataUrl: z.string().startsWith("data:image/").max(6_000_000),
 });
@@ -149,27 +151,33 @@ export async function createCorrection(input: unknown) {
 
   console.log("📄 Dados recebidos:", {
     examId: data.examId,
+    studentId: data.studentId,
     studentName: data.studentName,
     imageSize: data.imageDataUrl.length,
   });
 
   const teacherId = await requireTeacher();
 
-  console.log("👨‍🏫 Professor:", teacherId);
-
   await connectDatabase();
-
-  console.log("🗄️ Banco conectado");
 
   const exam = await ExamModel.findOne({
     _id: data.examId,
     teacherId,
   });
 
-  console.log("📝 Prova encontrada:", !!exam);
-
   if (!exam) {
     throw new Error("Prova não encontrada.");
+  }
+
+  // Confirma que o aluno pertence à turma da prova
+  const student = await StudentModel.findOne({
+    _id: data.studentId,
+    teacherId,
+    classId: exam.classId,
+  });
+
+  if (!student) {
+    throw new Error("Aluno não pertence à turma desta prova.");
   }
 
   if (
@@ -286,4 +294,39 @@ export async function deleteCorrection(formData: FormData) {
 
   revalidatePath("/dashboard");
   revalidatePath("/corrections");
+}
+
+export async function getStudentsByExam(examId: string) {
+  const teacherId = await requireTeacher();
+
+  await connectDatabase();
+
+  const exam = await ExamModel.findOne({
+    _id: examId,
+    teacherId,
+  })
+    .select("classId")
+    .lean();
+
+  if (!exam) {
+    throw new Error("Prova não encontrada.");
+  }
+
+  if (!exam.classId) {
+    throw new Error("A prova não possui uma turma associada.");
+  }
+
+  const students = await StudentModel.find({
+    teacherId,
+    classId: exam.classId,
+  })
+    .select("_id name registration")
+    .sort({ name: 1 })
+    .lean();
+
+  return students.map((student) => ({
+    id: student._id.toString(),
+    name: student.name,
+    registration: student.registration ?? null,
+  }));
 }
