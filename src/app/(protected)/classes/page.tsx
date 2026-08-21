@@ -2,6 +2,7 @@ import Link from "next/link";
 import { connectDatabase } from "@/lib/database";
 import { currentUserId } from "@/lib/session";
 import { ClassModel } from "@/features/classes/class.model";
+import DeleteClassButton from "@/components/delete-buttons/delete-class-button"
 
 export default async function ClassPage() {
   const teacherId = await currentUserId();
@@ -50,10 +51,10 @@ export default async function ClassPage() {
                   Editar Turma
                 </Link>
 
-                {/* <DeleteExamButton
-                  examId={classItem._id.toString()}
-                  examTitle={classItem.name}
-                /> */}
+                <DeleteClassButton
+                  classId={classItem._id.toString()}
+                  className={classItem.name}
+                />
               </div>
             </article>
           ))

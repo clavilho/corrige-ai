@@ -18,8 +18,9 @@ const createStudentSchema = z.object({
 export async function createStudent(formData: FormData) {
   const raw = Object.fromEntries(formData.entries());
   const data = createStudentSchema.parse(raw);
-
+  const classId = z.string().min(1).parse(formData.get("classId"));
   const teacherId = await currentUserId();
+
   if (!teacherId) redirect("/auth");
 
   await connectDatabase();
@@ -27,7 +28,7 @@ export async function createStudent(formData: FormData) {
   // validate classId as ObjectId
   const classObjId = new mongoose.Types.ObjectId(data.classId);
 
-  const doc = await StudentModel.create({
+  await StudentModel.create({
     teacherId,
     classId: classObjId,
     name: data.name,
@@ -36,11 +37,9 @@ export async function createStudent(formData: FormData) {
   });
 
   // increment studentCount on class
-  await (
-    await import("../classes/class.model")
-  ).ClassModel.updateOne({ _id: classObjId }, { $inc: { studentCount: 1 } });
+  await ClassModel.updateOne({ _id: classObjId }, { $inc: { studentCount: 1 } });
 
-  redirect(`/classes/${data.classId}`);
+  revalidatePath(`classes/${classId}`);
 }
 
 // add grade to student
@@ -88,12 +87,14 @@ export async function addGrade(formData: FormData) {
 export async function deleteStudent(formData: FormData) {
   const studentId = z.string().min(1).parse(formData.get("studentId"));
   const classId = z.string().min(1).parse(formData.get("classId"));
+
   await connectDatabase();
   await StudentModel.deleteOne({ _id: studentId });
   await ClassModel.findByIdAndUpdate(
     { _id: classId },
     { $inc: { studentCount: -1 } },
-    {new: true}
+    { new: true },
   );
+
   revalidatePath(`classes/${classId}`);
 }

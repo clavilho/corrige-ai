@@ -5,6 +5,8 @@ import { redirect } from "next/navigation";
 import { connectDatabase } from "@/lib/database";
 import { currentUserId } from "@/lib/session";
 import { ClassModel } from "./class.model";
+import { StudentModel } from "../students/student.model";
+import { revalidatePath } from "next/cache";
 
 const createSchema = z.object({
   name: z.string().trim().min(1).max(200),
@@ -14,13 +16,6 @@ const createSchema = z.object({
   term: z.string().trim().max(50).optional(),
   turno: z.enum(["manhã", "tarde", "noite"]).optional(),
 });
-
-async function teacherId() {
-  const id = await currentUserId();
-  if (!id) redirect("/auth");
-  return id;
-}
-
 
 export async function createClass(formData: FormData) {
   const raw = Object.fromEntries(formData.entries());
@@ -45,8 +40,22 @@ export async function createClass(formData: FormData) {
 
     redirect("/classes");
   } catch (err: any) {
-    if (err?.code === 11000) throw new Error("Já existe uma turma com esse código.");
+    if (err?.code === 11000)
+      throw new Error("Já existe uma turma com esse código.");
     console.error("createClass error:", err);
     throw err;
+  }
+}
+
+export async function excludeClass(formData: FormData) {
+  const classId = z.string().min(1).parse(formData.get("classId"));
+  try {
+    await connectDatabase();
+    await StudentModel.deleteMany({ classId });
+    await ClassModel.deleteOne({ _id: classId });
+
+    revalidatePath("classes");
+  } catch (err: any) {
+    throw new Error("Não foi possivel excluir a turma");
   }
 }

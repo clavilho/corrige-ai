@@ -1,20 +1,19 @@
 "use client";
 
-import  { useRef, useState } from "react";
+import React, { useRef, useState } from "react";
 import ConfirmDialog from "@/components/confirm-dialog";
-import { deleteExam } from "@/features/exams/actions";
+import { excludeClass } from "@/features/classes/actions";
 
-export default function DeleteExamButton({
-  examId,
-  examTitle,
+export default function DeleteClassButton({
+  classId,
+  className
 }: {
-  examId: string;
-  examTitle?: string;
+  classId: string;
+  className: string;
 }) {
   const formRef = useRef<HTMLFormElement | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // onConfirm agora retorna Promise<void> explicitamente
   function onConfirm(): Promise<void> {
     return new Promise<void>((resolve) => {
       try {
@@ -53,12 +52,12 @@ export default function DeleteExamButton({
 
   return (
     <>
-      <form ref={formRef} action={deleteExam} className="m-0">
-        <input type="hidden" name="examId" value={examId} />
-
+      <form ref={formRef} action={excludeClass} className="m-0">
+        <input type="hidden" name="classId" value={classId} />
+        
         <ConfirmDialog
           title="Confirmar exclusão"
-          description={`Tem certeza que deseja excluir a prova "${examTitle ?? ""}"? Esta ação é irreversível.`}
+          description={`Tem certeza que deseja excluir a turma ${className ?? ""}? Todos os alunos cadastrados tambem serão excluidos. Esta ação é irreversível.`}
           confirmLabel={loading ? "Excluindo..." : "Sim, excluir"}
           cancelLabel="Cancelar"
           onConfirm={onConfirm}
@@ -67,7 +66,7 @@ export default function DeleteExamButton({
           <button
             type="button"
             className="inline-flex w-full items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-semibold border border-red-200 text-red-700 bg-white hover:bg-red-50 transition disabled:opacity-60 sm:w-auto"
-            aria-label={`Excluir prova ${examId}`}
+            aria-label={`Excluir turma ${classId}`}
             disabled={loading}
           >
             {loading ? (
@@ -78,8 +77,20 @@ export default function DeleteExamButton({
                   fill="none"
                   xmlns="http://www.w3.org/2000/svg"
                 >
-                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeOpacity="0.25" strokeWidth="4" />
-                  <path d="M22 12a10 10 0 00-10-10" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
+                  <circle
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeOpacity="0.25"
+                    strokeWidth="4"
+                  />
+                  <path
+                    d="M22 12a10 10 0 00-10-10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                    strokeLinecap="round"
+                  />
                 </svg>
                 <span>Excluindo...</span>
               </>
