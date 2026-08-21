@@ -6,6 +6,8 @@ import { connectDatabase } from "@/lib/database";
 import { currentUserId } from "@/lib/session";
 import { StudentModel } from "./student.model";
 import mongoose from "mongoose";
+import { revalidatePath } from "next/cache";
+import { ClassModel } from "../classes/class.model";
 
 const createStudentSchema = z.object({
   classId: z.string().min(1),
@@ -34,7 +36,9 @@ export async function createStudent(formData: FormData) {
   });
 
   // increment studentCount on class
-  await (await import("../classes/class.model")).ClassModel.updateOne({ _id: classObjId }, { $inc: { studentCount: 1 } });
+  await (
+    await import("../classes/class.model")
+  ).ClassModel.updateOne({ _id: classObjId }, { $inc: { studentCount: 1 } });
 
   redirect(`/classes/${data.classId}`);
 }
@@ -45,7 +49,10 @@ const addGradeSchema = z.object({
   examId: z.string().optional(),
   correctionId: z.string().optional(),
   score: z.preprocess((v) => Number(v), z.number()),
-  totalPoints: z.preprocess((v) => (v === undefined || v === "" ? undefined : Number(v)), z.number().optional()),
+  totalPoints: z.preprocess(
+    (v) => (v === undefined || v === "" ? undefined : Number(v)),
+    z.number().optional(),
+  ),
   note: z.string().optional(),
 });
 
@@ -58,7 +65,10 @@ export async function addGrade(formData: FormData) {
 
   await connectDatabase();
 
-  const student = await StudentModel.findOne({ _id: new mongoose.Types.ObjectId(data.studentId), teacherId });
+  const student = await StudentModel.findOne({
+    _id: new mongoose.Types.ObjectId(data.studentId),
+    teacherId,
+  });
   if (!student) throw new Error("Aluno não encontrado.");
 
   const grade: any = {
@@ -68,11 +78,22 @@ export async function addGrade(formData: FormData) {
     createdAt: new Date(),
   };
   if (data.examId) grade.examId = new mongoose.Types.ObjectId(data.examId);
-  if (data.correctionId) grade.correctionId = new mongoose.Types.ObjectId(data.correctionId);
+  if (data.correctionId)
+    grade.correctionId = new mongoose.Types.ObjectId(data.correctionId);
 
   student.grades.push(grade);
   await student.save();
+}
 
-  // redirect back to class detail
-  redirect(`/classes/${student.classId.toString()}`);
+export async function deleteStudent(formData: FormData) {
+  const studentId = z.string().min(1).parse(formData.get("studentId"));
+  const classId = z.string().min(1).parse(formData.get("classId"));
+  await connectDatabase();
+  await StudentModel.deleteOne({ _id: studentId });
+  await ClassModel.findByIdAndUpdate(
+    { _id: classId },
+    { $inc: { studentCount: -1 } },
+    {new: true}
+  );
+  revalidatePath(`classes/${classId}`);
 }
