@@ -3,8 +3,10 @@
 import bcrypt from "bcryptjs";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+
 import { connectDatabase } from "@/lib/database";
 import { clearSession, createSession } from "@/lib/session";
+
 import { UserModel } from "./user.model";
 
 const credentials = z.object({
@@ -12,43 +14,97 @@ const credentials = z.object({
   password: z.string().min(8).max(72),
 });
 
+const nameSchema = z.string().trim().min(2).max(120);
+
 export async function signIn(formData: FormData) {
-  const email = String(formData.get("email") ?? "").trim().toLowerCase();
-  const password = String(formData.get("password") ?? "");
-  
-  const input = credentials.parse({
-    email: formData.get("email"),
-    password: formData.get("password"),
+  const inputResult = credentials.safeParse({
+    email: String(formData.get("email") ?? "")
+      .trim()
+      .toLowerCase(),
+    password: String(formData.get("password") ?? ""),
   });
-  await connectDatabase();
-  const user = await UserModel.findOne({
-    email: input.email.toLowerCase(),
-  }).lean();
-  if (!user || !(await bcrypt.compare(input.password, user.passwordHash)))
+
+  if (!inputResult.success) {
     redirect("/auth?error=credenciais");
+  }
+
+  const input = inputResult.data;
+
+  await connectDatabase();
+
+  const user = await UserModel.findOne({
+    email: input.email,
+  }).lean();
+
+  if (!user) {
+    redirect("/auth?error=credenciais");
+  }
+
+  const passwordValid = await bcrypt.compare(
+    input.password,
+    user.passwordHash,
+  );
+
+  if (!passwordValid) {
+    redirect("/auth?error=credenciais");
+  }
+
   await createSession(user._id.toString());
+
   redirect("/dashboard");
 }
 
 export async function signUp(formData: FormData) {
-  const name = z.string().trim().min(2).max(120).parse(formData.get("name"));
-  const input = credentials.parse({
-    email: formData.get("email"),
-    password: formData.get("password"),
+  const name = String(formData.get("name") ?? "").trim();
+
+  const nameResult = nameSchema.safeParse(name);
+
+  if (!nameResult.success) {
+    redirect("/auth?error=dados");
+  }
+
+  const email = String(formData.get("email") ?? "")
+    .trim()
+    .toLowerCase();
+
+  const password = String(formData.get("password") ?? "");
+
+  const credentialsResult = credentials.safeParse({
+    email,
+    password,
   });
+
+  if (!credentialsResult.success) {
+    redirect("/auth?error=dados");
+  }
+
+  const input = credentialsResult.data;
+
   await connectDatabase();
-  if (await UserModel.exists({ email: input.email.toLowerCase() }))
-    redirect("/auth?error=email");
-  const user = await UserModel.create({
-    name,
-    email: input.email.toLowerCase(),
-    passwordHash: await bcrypt.hash(input.password, 12),
+
+  const existingUser = await UserModel.exists({
+    email: input.email,
   });
-  await createSession(user.id);
+
+  if (existingUser) {
+    redirect("/auth?error=email");
+  }
+
+  const passwordHash = await bcrypt.hash(input.password, 12);
+
+  const user = await UserModel.create({
+    name: nameResult.data,
+    email: input.email,
+    passwordHash,
+  });
+
+  await createSession(user._id.toString());
+
   redirect("/dashboard");
 }
 
 export async function signOut() {
   await clearSession();
+
   redirect("/");
 }
