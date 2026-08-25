@@ -9,6 +9,8 @@ import {
 
 import { CorrectionModel } from "@/features/corrections/correction.model";
 import { ExamModel } from "@/features/exams/exam.model";
+import { StudentModel } from "@/features/students/student.model";
+
 import { connectDatabase } from "@/lib/database";
 import { currentUserId } from "@/lib/session";
 
@@ -37,6 +39,23 @@ export default async function CorrectionDetailPage({
     teacherId,
   }).lean();
 
+  /*
+   * Busca o aluno para descobrir a turma
+   * associada à correção.
+   */
+  const student = correction.studentId
+    ? await StudentModel.findOne({
+        _id: correction.studentId,
+        teacherId,
+      })
+        .select("classId")
+        .lean()
+    : null;
+
+  const classId = student?.classId
+    ? student.classId.toString()
+    : "";
+
   const totalQuestions =
     exam?.questionCount ??
     correction.totalQuestions ??
@@ -63,6 +82,24 @@ export default async function CorrectionDetailPage({
           (answer: any) => !answer.markedAnswer,
         ).length
       : 0);
+
+  /*
+   * Monta a URL para corrigir outro aluno.
+   *
+   * Sempre enviamos o examId.
+   * Se tivermos classId, também enviamos a turma.
+   *
+   * Dessa forma:
+   *
+   * /correct?examId=123
+   *
+   * ou
+   *
+   * /correct?examId=123&classId=456
+   */
+  const correctAnotherStudentUrl = classId
+    ? `/correct?examId=${correction.examId.toString()}&classId=${classId}`
+    : `/correct?examId=${correction.examId.toString()}`;
 
   return (
     <div className="space-y-6">
@@ -129,7 +166,7 @@ export default async function CorrectionDetailPage({
           <div className="flex flex-wrap gap-2">
             {/* OUTRO ALUNO DA MESMA PROVA */}
             <Link
-              href={`/correct?examId=${correction.examId.toString()}`}
+              href={correctAnotherStudentUrl}
               className="
                 inline-flex
                 items-center

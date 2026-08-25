@@ -49,6 +49,7 @@ interface CorrectionFormProps {
   exams: Exam[];
   initialExamId?: string;
   initialStudentId?: string;
+  initialClassId?: string;
   onImageSelected?: (dataUrl: string | null) => void;
 }
 
@@ -56,6 +57,7 @@ export function CorrectionForm({
   exams,
   initialExamId = "",
   initialStudentId = "",
+  initialClassId = "",
   onImageSelected,
 }: CorrectionFormProps) {
   const router = useRouter();
