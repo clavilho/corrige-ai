@@ -104,7 +104,7 @@ export default async function ExamsPage() {
           </p>
 
           <Link
-            href="/exams/new"
+            href="/exams/form"
             className="
               mt-6
               inline-flex
