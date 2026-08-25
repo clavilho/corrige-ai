@@ -3,60 +3,36 @@ export function buildAnswerSheetPrompt(
   alternatives: string[],
 ) {
   return `
-Leia a folha de respostas da imagem.
+Você é um sistema especialista em visão computacional e extração de dados de gabaritos e folhas de respostas manuscritas ou impressas.
 
-SUA ÚNICA TAREFA É IDENTIFICAR AS ALTERNATIVAS MARCADAS PELO ALUNO.
+Sua **ÚNICA** missão é escanear a imagem e extrair **estritamente** a alternativa marcada pelo aluno para **TODAS** as ${questionCount} questões solicitadas.
 
-Você NÃO deve corrigir a prova, descobrir a resposta correta ou usar conhecimento da matéria.
+⚠️ REGRAS CRÍTICAS PARA EVITAR OMISSÕES E FALHAS:
+1. **CObertura Obrigatória (100%):** O array de respostas final DEVE conter exatamente ${questionCount} itens. É proibido pular, omitir ou ignorar qualquer número de questão de 1 até ${questionCount}.
+2. **NÃO CORRIJA A PROVA:** Seu trabalho não é julgar se a resposta está certa ou errada, mas apenas registrar o que o aluno marcou mecanicamente na folha.
+3. **RIGOR DE EXTRAÇÃO:** 
+   - Aceite qualquer tipo de marcação evidente (preenchimento total, X, V, círculo, traço, asterisco ou rasura clara).
+   - Se houver dúvida entre duas marcações na mesma questão (dupla marcação), retorne \`null\`.
+   - Se houver marcação visível e coerente com uma das alternativas (${alternatives.join(", ")}), extraia-a, mesmo que a imagem esteja com qualidade mediana. Só use \`null\` em caso de ausência total de marcação ou ilegibilidade extrema/ambiguidade insolúvel. Nunca desista prematuramente de uma questão se houver indício de tinta/lápis.
 
 DADOS DA PROVA:
-- Questões: ${questionCount}
-- Alternativas válidas: ${alternatives.join(", ")}
+- Total de Questões Esperadas: ${questionCount}
+- Alternativas Válidas Permitidas: ${alternatives.join(", ")}
 
-COMO ANALISAR:
+PASSO A PASSO DA ANÁLISE:
+1. Faça uma varredura de cima para baixo, bloco por bloco ou questão por questão, mapeando sequencialmente de 1 até ${questionCount}.
+2. Para cada questão, verifique o alinhamento horizontal das alternativas (${alternatives.join(", ")}).
+3. Certifique-se de não deslocar o índice da questão (ex: marcar a linha 5 na linha 4).
+4. Confirme que o array de saída possui exatamente do elemento 1 ao ${questionCount}.
 
-1. Localize visualmente cada questão e suas respectivas alternativas.
-2. Analise cada questão de forma independente.
-3. Identifique a marcação feita pelo aluno.
-4. Considere uma alternativa marcada somente quando houver evidência visual clara.
-5. Se houver exatamente uma marcação claramente identificável, retorne essa alternativa.
-6. Se houver duas ou mais marcações, retorne null.
-7. Se nenhuma alternativa estiver marcada, retorne null.
-8. Se a marcação estiver ilegível, cortada, borrada ou ambígua, retorne null.
-9. Nunca escolha uma alternativa por proximidade ou por padrão esperado.
-10. Nunca invente uma resposta.
-11. Nunca use o gabarito para determinar a resposta marcada.
-12. Não confunda marcações de questões vizinhas.
-13. Preserve exatamente a numeração das questões.
-14. A resposta deve representar O QUE O ALUNO MARCOU, mesmo que esteja errada.
+ANTES DE GERAR O JSON, VALIDE INTERNAMENTE:
+- O array "answers" tem exatamente ${questionCount} objetos? (Sim/Não)
+- Todos os números de "question" vão sequencialmente de 1 até ${questionCount}? (Sim/Não)
+- Todas as respostas preenchidas pertencem estritamente a (${alternatives.join(", ")} ou null)? (Sim/Não)
 
-ATENÇÃO:
+RETORNE SOMENTE UM JSON VÁLIDO E NADA MAIS.
 
-Uma questão pode estar marcada com:
-- preenchimento;
-- X;
-- ✓;
-- círculo;
-- risco;
-- outro tipo evidente de marcação.
-
-O formato da marcação não importa. O que importa é haver evidência visual suficiente de que aquela alternativa foi selecionada.
-
-Se não for possível determinar com segurança qual alternativa foi marcada, use null.
-
-ANTES DE RESPONDER:
-
-Verifique se:
-- todas as ${questionCount} questões foram analisadas;
-- cada questão aparece apenas uma vez;
-- os números das questões estão corretos;
-- cada resposta é uma das alternativas válidas ou null;
-- nenhuma resposta foi adivinhada;
-- você identificou a marcação do aluno, e não a resposta correta.
-
-RETORNE SOMENTE JSON VÁLIDO.
-
-Formato:
+Formato exato esperado:
 
 {
   "answers": [
@@ -73,9 +49,7 @@ Formato:
   "notes": ""
 }
 
-image_quality deve ser obrigatoriamente:
-"boa", "regular" ou "ruim".
-
-Use "notes" somente para informar problemas relevantes na imagem.
+notes: Descreva aqui brevemente se houve algum problema de oclusão, corte ou borrão que afetou alguma questão específica, ou deixe vazio.
+image_quality deve ser obrigatoriamente um dos valores: "boa", "regular" ou "ruim".
 `;
 }
