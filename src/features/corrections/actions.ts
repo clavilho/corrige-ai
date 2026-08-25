@@ -10,27 +10,37 @@ import { currentUserId } from "@/lib/session";
 
 import { ExamModel } from "@/features/exams/exam.model";
 import { StudentModel } from "@/features/students/student.model";
+
 import { CorrectionModel } from "./correction.model";
 import { DetectedAnswer, scoreAnswers } from "./scoring";
 
+import { buildAnswerSheetPrompt } from "./prompts/answer-sheet.prompt";
+
+// ================================================================
+// CONSTANTES
+// ================================================================
+
+const ALL_ALTERNATIVES = ["A", "B", "C", "D", "E", "F"] as const;
+
+// ================================================================
+// SCHEMAS
+// ================================================================
+
 const requestSchema = z.object({
   examId: z.string().min(1),
+
   studentId: z.string().min(1),
+
   studentName: z.string().trim().min(1).max(120),
+
   imageDataUrl: z.string().startsWith("data:image/").max(6_000_000),
+
   replaceExisting: z.boolean().optional().default(false),
 });
 
-const readingSchema = z.object({
-  answers: z.array(
-    z.object({
-      question: z.number().int().positive(),
-      answer: z.string().nullable(),
-    }),
-  ),
-  image_quality: z.enum(["boa", "regular", "ruim"]).optional(),
-  notes: z.string().max(300).optional(),
-});
+// ================================================================
+// AUTH
+// ================================================================
 
 async function requireTeacher() {
   const id = await currentUserId();
@@ -41,6 +51,10 @@ async function requireTeacher() {
 
   return id;
 }
+
+// ================================================================
+// READ ANSWER SHEET
+// ================================================================
 
 async function readAnswerSheet(
   imageDataUrl: string,
@@ -60,45 +74,51 @@ async function readAnswerSheet(
     apiKey,
   });
 
+  // ============================================================
+  // SEPARA MIME TYPE E BASE64
+  // ============================================================
+
   const [header, base64] = imageDataUrl.split(",");
 
-  const mimeType =
-    header.match(/data:(.*);base64/)?.[1] ?? "image/jpeg";
+  if (!base64) {
+    throw new Error("Imagem inválida ou corrompida.");
+  }
 
-  const prompt = `
-Você é um corretor de gabaritos de provas.
+  const mimeType = header.match(/data:(.*);base64/)?.[1] ?? "image/jpeg";
 
-Analise a imagem enviada.
+  // ============================================================
+  // PROMPT
+  // ============================================================
 
-Existem ${questionCount} questões.
+  const prompt = buildAnswerSheetPrompt(questionCount, alternatives);
 
-As alternativas possíveis são:
+  // ============================================================
+  // SCHEMA DA RESPOSTA DO GEMINI
+  // ============================================================
 
-${alternatives.join(", ")}
+  const answerSchema = z.object({
+    question: z.number().int().min(1).max(questionCount),
 
-Para cada questão:
+    answer: z
+      .string()
+      .transform((value) => value.trim().toUpperCase())
+      .refine((value) => alternatives.includes(value), {
+        message: "Alternativa inválida.",
+      })
+      .nullable(),
+  });
 
-- identifique apenas UMA alternativa;
-- se houver duas marcações,
-  nenhuma marcação
-  ou estiver ilegível,
-  responda null.
+  const readingSchema = z.object({
+    answers: z.array(answerSchema).length(questionCount),
 
-Responda SOMENTE JSON.
+    image_quality: z.enum(["boa", "regular", "ruim"]).optional(),
 
-Formato obrigatório:
+    notes: z.string().max(300).optional(),
+  });
 
-{
-  "answers": [
-    {
-      "question": 1,
-      "answer": "A"
-    }
-  ],
-  "image_quality":"boa",
-  "notes":""
-}
-`;
+  // ============================================================
+  // ENVIA IMAGEM PARA O GEMINI
+  // ============================================================
 
   const response = await ai.models.generateContent({
     model: process.env.GEMINI_MODEL ?? "gemini-3.6-flash",
@@ -120,34 +140,103 @@ Formato obrigatório:
     },
   });
 
+  // ============================================================
+  // VALIDA RESPOSTA
+  // ============================================================
+
   if (!response.text) {
     throw new Error("Gemini não retornou conteúdo.");
   }
 
-  const json = response.text
-    .replace(/```json/g, "")
-    .replace(/```/g, "")
-    .trim();
+  let parsed: unknown;
 
-  const reading = readingSchema.parse(JSON.parse(json));
+  try {
+    parsed = JSON.parse(response.text);
+  } catch {
+    console.error("Resposta inválida do Gemini:", response.text);
+
+    throw new Error("O Gemini retornou uma resposta inválida.");
+  }
+
+  // ============================================================
+  // VALIDA COM ZOD
+  // ============================================================
+
+  const reading = readingSchema.safeParse(parsed);
+
+  if (!reading.success) {
+    console.error(
+      "Erro na validação da resposta do Gemini:",
+      reading.error.flatten(),
+    );
+
+    throw new Error(
+      "Não foi possível interpretar corretamente as respostas da prova.",
+    );
+  }
+
+  // ============================================================
+  // VALIDA QUESTÕES
+  // ============================================================
+
+  const questions = reading.data.answers.map((item) => item.question);
+
+  const uniqueQuestions = new Set(questions);
+
+  const allQuestionsPresent = Array.from(
+    { length: questionCount },
+    (_, index) => index + 1,
+  ).every((question) => uniqueQuestions.has(question));
+
+  if (uniqueQuestions.size !== questionCount || !allQuestionsPresent) {
+    console.error("Questões identificadas pelo Gemini:", questions);
+
+    throw new Error("O Gemini não identificou corretamente todas as questões.");
+  }
+
+  // ============================================================
+  // ORDENA QUESTÕES
+  // ============================================================
+
+  const detected: DetectedAnswer[] = reading.data.answers
+    .sort((a, b) => a.question - b.question)
+    .map((item) => ({
+      question: item.question,
+
+      answer: item.answer ? item.answer.trim().toUpperCase() : null,
+    }));
+
+  // ============================================================
+  // WARNINGS
+  // ============================================================
+
+  const warnings: string[] = [];
+
+  if (reading.data.image_quality === "ruim") {
+    warnings.push(
+      "A qualidade da imagem está baixa; confira o resultado manualmente.",
+    );
+  }
+
+  if (reading.data.image_quality === "regular") {
+    warnings.push(
+      "A qualidade da imagem é regular; confira questões com marcações pouco visíveis.",
+    );
+  }
+
+  if (reading.data.notes?.trim()) {
+    warnings.push(reading.data.notes.trim());
+  }
 
   return {
-    detected: reading.answers.map((item) => ({
-      question: item.question,
-      answer: item.answer
-        ? String(item.answer).trim().toUpperCase().slice(0, 1)
-        : null,
-    })),
-
-    warnings: [
-      reading.image_quality === "ruim"
-        ? "A qualidade da imagem está baixa; confira o resultado manualmente."
-        : "",
-
-      reading.notes ?? "",
-    ].filter(Boolean),
+    detected,
+    warnings,
   };
 }
+
+// ================================================================
+// CREATE CORRECTION
+// ================================================================
 
 export async function createCorrection(input: unknown) {
   const data = requestSchema.parse(input);
@@ -187,14 +276,13 @@ export async function createCorrection(input: unknown) {
   // 3. VERIFICA SE JÁ EXISTE CORREÇÃO
   // ============================================================
 
-  const existingCorrection =
-    await CorrectionModel.findOne({
-      teacherId,
-      examId: exam._id,
-      studentId: student._id,
-    })
-      .select("_id score createdAt")
-      .lean();
+  const existingCorrection = await CorrectionModel.findOne({
+    teacherId,
+    examId: exam._id,
+    studentId: student._id,
+  })
+    .select("_id score createdAt")
+    .lean();
 
   if (existingCorrection && !data.replaceExisting) {
     return {
@@ -219,33 +307,26 @@ export async function createCorrection(input: unknown) {
     !Array.isArray(exam.answerKey) ||
     exam.answerKey.length !== exam.questionCount
   ) {
-    throw new Error(
-      "Cadastre o gabarito completo antes de corrigir.",
-    );
+    throw new Error("Cadastre o gabarito completo antes de corrigir.");
   }
 
   // ============================================================
   // 5. ALTERNATIVAS
   // ============================================================
 
-  const alternatives = [
-    "A",
-    "B",
-    "C",
-    "D",
-    "E",
-    "F",
-  ].slice(0, exam.alternativeCount);
+  const alternatives = ALL_ALTERNATIVES.slice(0, exam.alternativeCount);
+
+  if (alternatives.length !== exam.alternativeCount) {
+    throw new Error("Quantidade de alternativas inválida.");
+  }
 
   // ============================================================
   // 6. ENVIA A IMAGEM PARA O GEMINI
   // ============================================================
 
-  const reading = await readAnswerSheet(
-    data.imageDataUrl,
-    exam.questionCount,
-    alternatives,
-  );
+  const reading = await readAnswerSheet(data.imageDataUrl, exam.questionCount, [
+    ...alternatives,
+  ]);
 
   // ============================================================
   // 7. TOTAL DE PONTOS
@@ -275,11 +356,19 @@ export async function createCorrection(input: unknown) {
     },
   );
 
+  // ============================================================
+  // QUESTÕES NÃO IDENTIFICADAS
+  // ============================================================
+
   if (scoreResult.unidentified) {
     reading.warnings.push(
       `${scoreResult.unidentified} questão(ões) não identificada(s).`,
     );
   }
+
+  // ============================================================
+  // NOTA FINAL
+  // ============================================================
 
   const finalScore =
     typeof scoreResult.finalScore === "number"
@@ -297,22 +386,10 @@ export async function createCorrection(input: unknown) {
       teacherId,
     });
 
-    /*
-     * Remove também a nota antiga do array grades.
-     *
-     * Assim não teremos:
-     *
-     * grades: [
-     *   prova 1 = 7
-     *   prova 1 = 9
-     * ]
-     *
-     * Teremos somente:
-     *
-     * grades: [
-     *   prova 1 = 9
-     * ]
-     */
+    // ----------------------------------------------------------
+    // Remove também a nota antiga do aluno
+    // ----------------------------------------------------------
+
     await StudentModel.updateOne(
       {
         _id: student._id,
@@ -376,9 +453,13 @@ export async function createCorrection(input: unknown) {
       $push: {
         grades: {
           examId: exam._id,
+
           correctionId: correction._id,
+
           score: finalScore,
+
           totalPoints,
+
           createdAt: new Date(),
         },
       },
@@ -392,9 +473,7 @@ export async function createCorrection(input: unknown) {
   // 12. ID DA CORREÇÃO
   // ============================================================
 
-  const correctionId = (
-    correction._id ?? correction.id
-  ).toString();
+  const correctionId = (correction._id ?? correction.id).toString();
 
   // ============================================================
   // 13. INVALIDA CACHE
@@ -432,10 +511,7 @@ export async function createCorrection(input: unknown) {
 export async function deleteCorrection(formData: FormData) {
   const teacherId = await requireTeacher();
 
-  const id = z
-    .string()
-    .min(1)
-    .parse(formData.get("correctionId"));
+  const id = z.string().min(1).parse(formData.get("correctionId"));
 
   await connectDatabase();
 
@@ -453,9 +529,9 @@ export async function deleteCorrection(formData: FormData) {
     teacherId,
   });
 
-  /*
-   * Também remove a nota correspondente do aluno.
-   */
+  // ============================================================
+  // REMOVE A NOTA CORRESPONDENTE DO ALUNO
+  // ============================================================
 
   if (correction.studentId) {
     await StudentModel.updateOne(
@@ -501,9 +577,7 @@ export async function getStudentsByExam(examId: string) {
   }
 
   if (!exam.classId) {
-    throw new Error(
-      "A prova não possui uma turma associada.",
-    );
+    throw new Error("A prova não possui uma turma associada.");
   }
 
   const students = await StudentModel.find({
@@ -527,10 +601,7 @@ export async function getStudentsByExam(examId: string) {
 // GET EXISTING CORRECTION
 // ================================================================
 
-export async function getExistingCorrection(
-  examId: string,
-  studentId: string,
-) {
+export async function getExistingCorrection(examId: string, studentId: string) {
   const teacherId = await currentUserId();
 
   if (!teacherId) {
@@ -539,14 +610,13 @@ export async function getExistingCorrection(
 
   await connectDatabase();
 
-  const correction =
-    await CorrectionModel.findOne({
-      teacherId,
-      examId,
-      studentId,
-    })
-      .select("_id score createdAt")
-      .lean();
+  const correction = await CorrectionModel.findOne({
+    teacherId,
+    examId,
+    studentId,
+  })
+    .select("_id score createdAt")
+    .lean();
 
   if (!correction) {
     return null;
@@ -560,8 +630,6 @@ export async function getExistingCorrection(
     createdAt:
       correction.createdAt instanceof Date
         ? correction.createdAt.toISOString()
-        : new Date(
-            correction.createdAt,
-          ).toISOString(),
+        : new Date(correction.createdAt).toISOString(),
   };
 }
