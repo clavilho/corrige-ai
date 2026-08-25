@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+
 import {
   AlertTriangle,
   Camera,
@@ -11,6 +12,7 @@ import {
   LoaderCircle,
   Upload,
 } from "lucide-react";
+
 import imageCompression from "browser-image-compression";
 
 import {
@@ -19,10 +21,16 @@ import {
   getStudentsByExam,
 } from "@/features/corrections/actions";
 
+interface ExamClass {
+  id: string;
+  name: string;
+}
+
 interface Exam {
   id: string;
   title: string;
   questionCount: number;
+  classes: ExamClass[];
 }
 
 interface Student {
@@ -52,16 +60,15 @@ export function CorrectionForm({
 }: CorrectionFormProps) {
   const router = useRouter();
 
-  const [selectedExamId, setSelectedExamId] =
-    useState(initialExamId);
+  const [selectedExamId, setSelectedExamId] = useState(initialExamId);
 
-  const [selectedStudentId, setSelectedStudentId] =
-    useState(initialStudentId);
+  const [selectedClassId, setSelectedClassId] = useState("");
+
+  const [selectedStudentId, setSelectedStudentId] = useState(initialStudentId);
 
   const [students, setStudents] = useState<Student[]>([]);
 
-  const [loadingStudents, setLoadingStudents] =
-    useState(false);
+  const [loadingStudents, setLoadingStudents] = useState(false);
 
   const [loadingExistingCorrection, setLoadingExistingCorrection] =
     useState(false);
@@ -69,60 +76,184 @@ export function CorrectionForm({
   const [existingCorrection, setExistingCorrection] =
     useState<ExistingCorrection | null>(null);
 
-  const [selectedImage, setSelectedImage] =
-    useState<File | null>(null);
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
 
   const [error, setError] = useState("");
 
   const [loading, setLoading] = useState(false);
 
-  const [showReplaceConfirm, setShowReplaceConfirm] =
-    useState(false);
+  const [showReplaceConfirm, setShowReplaceConfirm] = useState(false);
 
   /*
-   * Carrega os alunos quando a prova muda.
+   * ============================================================
+   * PROVA SELECIONADA
+   * ============================================================
    */
+
+  const selectedExam = exams.find((exam) => exam.id === selectedExamId);
+
+  /*
+   * ============================================================
+   * TURMAS DA PROVA
+   *
+   * Sempre usamos [] como fallback.
+   * Isso evita o erro:
+   *
+   * Cannot read properties of undefined (reading 'length')
+   * ============================================================
+   */
+
+  const examClasses: ExamClass[] = selectedExam?.classes ?? [];
+
+  const hasClasses = examClasses.length > 0;
+
+  const hasSingleClass = examClasses.length === 1;
+
+  const hasMultipleClasses = examClasses.length > 1;
+
+  /*
+   * ============================================================
+   * SELECIONA AUTOMATICAMENTE A TURMA
+   * ============================================================
+   *
+   * Se a prova tiver somente uma turma:
+   *
+   * Prova
+   *   ↓
+   * Turma selecionada automaticamente
+   *   ↓
+   * Busca alunos
+   *   ↓
+   * Professor seleciona aluno
+   *
+   * Se tiver mais de uma:
+   *
+   * Prova
+   *   ↓
+   * Professor escolhe turma
+   *   ↓
+   * Busca alunos
+   */
+
   useEffect(() => {
+    if (!selectedExamId) {
+      setSelectedClassId("");
+      setStudents([]);
+      setSelectedStudentId("");
+      setExistingCorrection(null);
+      return;
+    }
+
+    const exam = exams.find((item) => item.id === selectedExamId);
+
+    if (!exam) {
+      setSelectedClassId("");
+      setStudents([]);
+      setSelectedStudentId("");
+      setExistingCorrection(null);
+      return;
+    }
+
+    const classes = exam.classes ?? [];
+
+    /*
+     * PROVA COM UMA TURMA
+     */
+
+    if (classes.length === 1) {
+      const classId = classes[0].id;
+
+      setSelectedClassId(classId);
+
+      /*
+       * Não limpamos o aluno aqui.
+       *
+       * O próximo useEffect será responsável
+       * por buscar os alunos da turma.
+       */
+
+      return;
+    }
+
+    /*
+     * PROVA COM MAIS DE UMA TURMA
+     */
+
+    if (classes.length > 1) {
+      setSelectedClassId("");
+      setStudents([]);
+      setSelectedStudentId("");
+      setExistingCorrection(null);
+      return;
+    }
+
+    /*
+     * PROVA SEM TURMA
+     */
+
+    setSelectedClassId("");
+    setStudents([]);
+    setSelectedStudentId("");
+    setExistingCorrection(null);
+  }, [selectedExamId, exams]);
+
+  /*
+   * ============================================================
+   * CARREGA ALUNOS
+   * ============================================================
+   */
+
+  useEffect(() => {
+    let cancelled = false;
+
     async function loadStudents() {
-      if (!selectedExamId) {
+      if (!selectedExamId || !selectedClassId) {
         setStudents([]);
-        setSelectedStudentId("");
+
+        /*
+         * Só limpa o aluno quando realmente
+         * não temos uma turma selecionada.
+         */
+        if (!selectedClassId) {
+          setSelectedStudentId("");
+        }
+
         setExistingCorrection(null);
+
         return;
       }
 
       try {
         setLoadingStudents(true);
         setError("");
-
-        /*
-         * Quando o usuário troca de prova,
-         * limpamos a correção anterior.
-         */
         setExistingCorrection(null);
 
-        const result =
-          await getStudentsByExam(selectedExamId);
+        const result = await getStudentsByExam(selectedExamId, selectedClassId);
+
+        if (cancelled) {
+          return;
+        }
 
         setStudents(result);
 
         /*
-         * Se viemos da tela de resultado com um aluno
-         * pré-selecionado, selecionamos esse aluno
-         * depois que a lista estiver carregada.
+         * Se veio com um aluno pré-selecionado,
+         * tenta encontrar esse aluno na lista.
          */
+
         if (
           initialStudentId &&
-          result.some(
-            (student) =>
-              student.id === initialStudentId,
-          )
+          result.some((student) => student.id === initialStudentId)
         ) {
           setSelectedStudentId(initialStudentId);
-        } else if (!initialStudentId) {
+        } else {
           setSelectedStudentId("");
         }
       } catch (err) {
+        if (cancelled) {
+          return;
+        }
+
         console.error(err);
 
         setStudents([]);
@@ -135,23 +266,30 @@ export function CorrectionForm({
             : "Não foi possível carregar os alunos.",
         );
       } finally {
-        setLoadingStudents(false);
+        if (!cancelled) {
+          setLoadingStudents(false);
+        }
       }
     }
 
     loadStudents();
-  }, [selectedExamId, initialStudentId]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedExamId, selectedClassId, initialStudentId]);
 
   /*
-   * Verifica se o aluno já possui uma correção
-   * para a prova selecionada.
+   * ============================================================
+   * VERIFICA CORREÇÃO EXISTENTE
+   * ============================================================
    */
+
   useEffect(() => {
+    let cancelled = false;
+
     async function checkExistingCorrection() {
-      if (
-        !selectedExamId ||
-        !selectedStudentId
-      ) {
+      if (!selectedExamId || !selectedStudentId) {
         setExistingCorrection(null);
         return;
       }
@@ -160,14 +298,21 @@ export function CorrectionForm({
         setLoadingExistingCorrection(true);
         setError("");
 
-        const result =
-          await getExistingCorrection(
-            selectedExamId,
-            selectedStudentId,
-          );
+        const result = await getExistingCorrection(
+          selectedExamId,
+          selectedStudentId,
+        );
+
+        if (cancelled) {
+          return;
+        }
 
         setExistingCorrection(result);
       } catch (err) {
+        if (cancelled) {
+          return;
+        }
+
         console.error(err);
 
         setExistingCorrection(null);
@@ -178,50 +323,55 @@ export function CorrectionForm({
             : "Não foi possível verificar a correção anterior.",
         );
       } finally {
-        setLoadingExistingCorrection(false);
+        if (!cancelled) {
+          setLoadingExistingCorrection(false);
+        }
       }
     }
 
     checkExistingCorrection();
+
+    return () => {
+      cancelled = true;
+    };
   }, [selectedExamId, selectedStudentId]);
 
   /*
-   * Compressão da imagem antes de enviar.
+   * ============================================================
+   * COMPRESSÃO DA IMAGEM
+   * ============================================================
    */
-  async function convertToBase64(
-    file: File,
-  ): Promise<string> {
-    const compressed =
-      await imageCompression(file, {
-        maxSizeMB: 0.35,
-        maxWidthOrHeight: 1600,
-        useWebWorker: true,
-        fileType: "image/jpeg",
-        initialQuality: 0.75,
-      });
 
-    return new Promise(
-      (resolve, reject) => {
-        const reader = new FileReader();
+  async function convertToBase64(file: File): Promise<string> {
+    const compressed = await imageCompression(file, {
+      maxSizeMB: 0.35,
+      maxWidthOrHeight: 1600,
+      useWebWorker: true,
+      fileType: "image/jpeg",
+      initialQuality: 0.75,
+    });
 
-        reader.onload = () =>
-          resolve(reader.result as string);
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
 
-        reader.onerror = reject;
+      reader.onload = () => {
+        resolve(reader.result as string);
+      };
 
-        reader.readAsDataURL(compressed);
-      },
-    );
+      reader.onerror = reject;
+
+      reader.readAsDataURL(compressed);
+    });
   }
 
   /*
-   * Seleção da imagem.
+   * ============================================================
+   * SELEÇÃO DA IMAGEM
+   * ============================================================
    */
-  function handleFileChange(
-    event: React.ChangeEvent<HTMLInputElement>,
-  ) {
-    const file =
-      event.target.files?.[0];
+
+  function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
 
     if (!file) {
       return;
@@ -234,11 +384,19 @@ export function CorrectionForm({
   }
 
   /*
-   * Validação antes do envio.
+   * ============================================================
+   * VALIDAÇÃO
+   * ============================================================
    */
+
   function validateForm(): boolean {
     if (!selectedExamId) {
       setError("Selecione uma prova.");
+      return false;
+    }
+
+    if (!selectedClassId) {
+      setError("Selecione a turma.");
       return false;
     }
 
@@ -248,22 +406,16 @@ export function CorrectionForm({
     }
 
     if (!selectedImage) {
-      setError(
-        "Envie uma imagem da prova.",
-      );
+      setError("Envie uma imagem da prova.");
       return false;
     }
 
-    const selectedStudent =
-      students.find(
-        (student) =>
-          student.id === selectedStudentId,
-      );
+    const selectedStudent = students.find(
+      (student) => student.id === selectedStudentId,
+    );
 
     if (!selectedStudent) {
-      setError(
-        "Aluno selecionado não encontrado.",
-      );
+      setError("Aluno selecionado não encontrado.");
       return false;
     }
 
@@ -271,14 +423,12 @@ export function CorrectionForm({
   }
 
   /*
-   * Clique no botão principal.
-   *
-   * Se já existir uma correção,
-   * mostramos confirmação antes de substituir.
+   * ============================================================
+   * SUBMIT
+   * ============================================================
    */
-  function handleSubmit(
-    event: React.FormEvent<HTMLFormElement>,
-  ) {
+
+  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     setError("");
@@ -296,28 +446,28 @@ export function CorrectionForm({
   }
 
   /*
-   * Executa efetivamente a correção.
+   * ============================================================
+   * PROCESSA CORREÇÃO
+   * ============================================================
    */
-  async function processCorrection(
-    replaceExisting: boolean,
-  ) {
-    const selectedStudent =
-      students.find(
-        (student) =>
-          student.id === selectedStudentId,
-      );
+
+  async function processCorrection(replaceExisting: boolean) {
+    const selectedStudent = students.find(
+      (student) => student.id === selectedStudentId,
+    );
 
     if (!selectedStudent) {
-      setError(
-        "Aluno selecionado não encontrado.",
-      );
+      setError("Aluno selecionado não encontrado.");
+      return;
+    }
+
+    if (!selectedClassId) {
+      setError("Selecione a turma.");
       return;
     }
 
     if (!selectedImage) {
-      setError(
-        "Envie uma imagem da prova.",
-      );
+      setError("Envie uma imagem da prova.");
       return;
     }
 
@@ -326,64 +476,63 @@ export function CorrectionForm({
       setLoading(true);
       setError("");
 
-      const imageDataUrl =
-        await convertToBase64(
-          selectedImage,
-        );
+      const imageDataUrl = await convertToBase64(selectedImage);
 
-      const result =
-        await createCorrection({
-          examId: selectedExamId,
+      const result = await createCorrection({
+        examId: selectedExamId,
 
-          studentId:
-            selectedStudent.id,
+        classId: selectedClassId,
 
-          studentName:
-            selectedStudent.name,
+        studentId: selectedStudent.id,
 
-          imageDataUrl,
+        studentName: selectedStudent.name,
 
-          /*
-           * Informa para a Server Action
-           * se deve substituir a correção existente.
-           */
-          replaceExisting,
-        });
+        imageDataUrl,
 
-      router.push(
-        `/corrections/${result.correctionId}`,
-      );
+        replaceExisting,
+      });
+
+      router.push(`/corrections/${result.correctionId}`);
     } catch (err) {
       console.error(err);
 
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Erro ao corrigir prova.",
-      );
+      setError(err instanceof Error ? err.message : "Erro ao corrigir prova.");
     } finally {
       setLoading(false);
     }
   }
 
   /*
-   * Cancelar substituição.
+   * ============================================================
+   * CANCELAR SUBSTITUIÇÃO
+   * ============================================================
    */
+
   function handleCancelReplace() {
     setShowReplaceConfirm(false);
   }
 
-  const selectedStudent =
-    students.find(
-      (student) =>
-        student.id === selectedStudentId,
-    );
+  /*
+   * ============================================================
+   * ALUNO SELECIONADO
+   * ============================================================
+   */
+
+  const selectedStudent = students.find(
+    (student) => student.id === selectedStudentId,
+  );
+
+  /*
+   * ============================================================
+   * RENDER
+   * ============================================================
+   */
 
   return (
     <>
-      {/* ================================================= */}
+      {/* ======================================================= */}
       {/* LOADING */}
-      {/* ================================================= */}
+      {/* ======================================================= */}
 
       {loading && (
         <div
@@ -432,47 +581,47 @@ export function CorrectionForm({
         </div>
       )}
 
-      {/* ================================================= */}
-      {/* CONFIRMAÇÃO DE SUBSTITUIÇÃO */}
-      {/* ================================================= */}
+      {/* ======================================================= */}
+      {/* CONFIRMAÇÃO */}
+      {/* ======================================================= */}
 
       {showReplaceConfirm && existingCorrection && (
         <div
           className="
-            fixed
-            inset-0
-            z-[10000]
-            flex
-            items-center
-            justify-center
-            bg-black/50
-            px-4
-            backdrop-blur-sm
-          "
+              fixed
+              inset-0
+              z-[10000]
+              flex
+              items-center
+              justify-center
+              bg-black/50
+              px-4
+              backdrop-blur-sm
+            "
         >
           <div
             className="
-              w-full
-              max-w-md
-              rounded-2xl
-              bg-white
-              p-6
-              shadow-2xl
-            "
+                w-full
+                max-w-md
+                rounded-2xl
+                bg-white
+                p-6
+                shadow-2xl
+              "
           >
             <div className="flex items-start gap-3">
               <div
                 className="
-                  flex
-                  h-10
-                  w-10
-                  shrink-0
-                  items-center
-                  justify-center
-                  rounded-full
-                  bg-amber-100
-                  text-amber-700
-                "
+                    flex
+                    h-10
+                    w-10
+                    shrink-0
+                    items-center
+                    justify-center
+                    rounded-full
+                    bg-amber-100
+                    text-amber-700
+                  "
               >
                 <AlertTriangle className="h-5 w-5" />
               </div>
@@ -483,72 +632,58 @@ export function CorrectionForm({
                 </h2>
 
                 <p className="mt-1 text-sm text-slate-600">
-                  Este aluno já possui uma correção
-                  para esta prova.
+                  Este aluno já possui uma correção para esta prova.
                 </p>
               </div>
             </div>
 
             <div
               className="
-                mt-5
-                rounded-xl
-                border
-                border-amber-200
-                bg-amber-50
-                p-4
-              "
+                  mt-5
+                  rounded-xl
+                  border
+                  border-amber-200
+                  bg-amber-50
+                  p-4
+                "
             >
               <p className="text-sm text-slate-700">
-                <span className="font-semibold">
-                  Aluno:
-                </span>{" "}
+                <span className="font-semibold">Aluno:</span>{" "}
                 {selectedStudent?.name}
               </p>
 
               <p className="mt-1 text-sm text-slate-700">
-                <span className="font-semibold">
-                  Nota anterior:
-                </span>{" "}
-                {Number(
-                  existingCorrection.score,
-                ).toFixed(1)}
+                <span className="font-semibold">Nota anterior:</span>{" "}
+                {Number(existingCorrection.score).toFixed(1)}
               </p>
 
               <p className="mt-1 text-sm text-slate-700">
-                <span className="font-semibold">
-                  Data:
-                </span>{" "}
-                {new Date(
-                  existingCorrection.createdAt,
-                ).toLocaleString("pt-BR")}
+                <span className="font-semibold">Data:</span>{" "}
+                {new Date(existingCorrection.createdAt).toLocaleString("pt-BR")}
               </p>
             </div>
 
             <p className="mt-4 text-sm leading-relaxed text-slate-600">
-              Ao continuar, a correção anterior
-              será substituída pelo resultado desta
-              nova imagem.
+              Ao continuar, a correção anterior será substituída pelo resultado
+              desta nova imagem.
             </p>
 
             <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <button
                 type="button"
-                onClick={
-                  handleCancelReplace
-                }
+                onClick={handleCancelReplace}
                 className="
-                  rounded-xl
-                  border
-                  border-slate-200
-                  px-4
-                  py-2.5
-                  text-sm
-                  font-semibold
-                  text-slate-700
-                  transition
-                  hover:bg-slate-50
-                "
+                    rounded-xl
+                    border
+                    border-slate-200
+                    px-4
+                    py-2.5
+                    text-sm
+                    font-semibold
+                    text-slate-700
+                    transition
+                    hover:bg-slate-50
+                  "
               >
                 Cancelar
               </button>
@@ -556,21 +691,21 @@ export function CorrectionForm({
               <Link
                 href={`/corrections/${existingCorrection.correctionId}`}
                 className="
-                  inline-flex
-                  items-center
-                  justify-center
-                  gap-2
-                  rounded-xl
-                  border
-                  border-slate-200
-                  px-4
-                  py-2.5
-                  text-sm
-                  font-semibold
-                  text-slate-700
-                  transition
-                  hover:bg-slate-50
-                "
+                    inline-flex
+                    items-center
+                    justify-center
+                    gap-2
+                    rounded-xl
+                    border
+                    border-slate-200
+                    px-4
+                    py-2.5
+                    text-sm
+                    font-semibold
+                    text-slate-700
+                    transition
+                    hover:bg-slate-50
+                  "
               >
                 <Eye className="h-4 w-4" />
                 Ver anterior
@@ -578,20 +713,18 @@ export function CorrectionForm({
 
               <button
                 type="button"
-                onClick={() =>
-                  processCorrection(true)
-                }
+                onClick={() => processCorrection(true)}
                 className="
-                  rounded-xl
-                  bg-[#006F72]
-                  px-4
-                  py-2.5
-                  text-sm
-                  font-semibold
-                  text-white
-                  transition
-                  hover:bg-[#005B5E]
-                "
+                    rounded-xl
+                    bg-[#006F72]
+                    px-4
+                    py-2.5
+                    text-sm
+                    font-semibold
+                    text-white
+                    transition
+                    hover:bg-[#005B5E]
+                  "
               >
                 Sim, substituir
               </button>
@@ -600,15 +733,15 @@ export function CorrectionForm({
         </div>
       )}
 
-      {/* ================================================= */}
+      {/* ======================================================= */}
       {/* FORM */}
-      {/* ================================================= */}
+      {/* ======================================================= */}
 
-      <form
-        onSubmit={handleSubmit}
-        className="space-y-6"
-      >
+      <form onSubmit={handleSubmit} className="space-y-6">
+        {/* ===================================================== */}
         {/* PROVA */}
+        {/* ===================================================== */}
+
         <div>
           <label
             htmlFor="exam"
@@ -627,13 +760,15 @@ export function CorrectionForm({
             id="exam"
             value={selectedExamId}
             onChange={(event) => {
-              setSelectedExamId(
-                event.target.value,
-              );
+              const examId = event.target.value;
 
+              setSelectedExamId(examId);
+
+              setSelectedClassId("");
               setSelectedStudentId("");
               setExistingCorrection(null);
               setSelectedImage(null);
+              setStudents([]);
               setError("");
             }}
             disabled={loading}
@@ -653,22 +788,121 @@ export function CorrectionForm({
               disabled:text-slate-400
             "
           >
-            <option value="">
-              Selecione a prova
-            </option>
+            <option value="">Selecione a prova</option>
 
             {exams.map((exam) => (
-              <option
-                key={exam.id}
-                value={exam.id}
-              >
+              <option key={exam.id} value={exam.id}>
                 {exam.title}
               </option>
             ))}
           </select>
         </div>
 
+        {/* ===================================================== */}
+        {/* TURMA */}
+        {/* ===================================================== */}
+
+        {hasMultipleClasses && (
+          <div>
+            <label
+              htmlFor="class"
+              className="
+                mb-2
+                block
+                text-sm
+                font-semibold
+                text-slate-800
+              "
+            >
+              Turma
+            </label>
+
+            <select
+              id="class"
+              value={selectedClassId}
+              onChange={(event) => {
+                setSelectedClassId(event.target.value);
+
+                setSelectedStudentId("");
+                setExistingCorrection(null);
+                setStudents([]);
+                setError("");
+              }}
+              disabled={!selectedExamId || loading}
+              className="
+                w-full
+                rounded-xl
+                border
+                border-slate-200
+                bg-white
+                px-4
+                py-3
+                outline-none
+                transition
+                focus:border-[#1E7F84]
+                disabled:cursor-not-allowed
+                disabled:bg-slate-50
+                disabled:text-slate-400
+              "
+            >
+              <option value="">Selecione a turma</option>
+
+              {examClasses.map((examClass) => (
+                <option key={examClass.id} value={examClass.id}>
+                  {examClass.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {/* ===================================================== */}
+        {/* TURMA ÚNICA */}
+        {/* ===================================================== */}
+
+        {hasSingleClass && selectedClassId && (
+          <div
+            className="
+              rounded-xl
+              border
+              border-slate-100
+              bg-slate-50
+              px-4
+              py-3
+            "
+          >
+            <p className="text-xs font-medium text-slate-500">Turma</p>
+
+            <p className="mt-0.5 text-sm font-semibold text-slate-800">
+              {examClasses[0].name}
+            </p>
+          </div>
+        )}
+
+        {/* ===================================================== */}
+        {/* PROVA SEM TURMA */}
+        {/* ===================================================== */}
+
+        {selectedExamId && !hasClasses && (
+          <div
+            className="
+                rounded-xl
+                border
+                border-amber-200
+                bg-amber-50
+                p-4
+                text-sm
+                text-amber-800
+              "
+          >
+            Esta prova não possui uma turma associada.
+          </div>
+        )}
+
+        {/* ===================================================== */}
         {/* ALUNO */}
+        {/* ===================================================== */}
+
         <div>
           <label
             htmlFor="student"
@@ -687,17 +921,13 @@ export function CorrectionForm({
             id="student"
             value={selectedStudentId}
             onChange={(event) => {
-              setSelectedStudentId(
-                event.target.value,
-              );
+              setSelectedStudentId(event.target.value);
 
               setExistingCorrection(null);
               setError("");
             }}
             disabled={
-              !selectedExamId ||
-              loadingStudents ||
-              loading
+              !selectedExamId || !selectedClassId || loadingStudents || loading
             }
             className="
               w-full
@@ -718,28 +948,26 @@ export function CorrectionForm({
             <option value="">
               {!selectedExamId
                 ? "Selecione uma prova primeiro"
-                : loadingStudents
-                  ? "Carregando alunos..."
-                  : students.length === 0
-                    ? "Nenhum aluno encontrado"
-                    : "Selecione o aluno"}
+                : !selectedClassId
+                  ? "Selecione uma turma primeiro"
+                  : loadingStudents
+                    ? "Carregando alunos..."
+                    : students.length === 0
+                      ? "Nenhum aluno encontrado"
+                      : "Selecione o aluno"}
             </option>
 
             {students.map((student) => (
-              <option
-                key={student.id}
-                value={student.id}
-              >
+              <option key={student.id} value={student.id}>
                 {student.name}
 
-                {student.registration
-                  ? ` — ${student.registration}`
-                  : ""}
+                {student.registration ? ` — ${student.registration}` : ""}
               </option>
             ))}
           </select>
 
           {selectedExamId &&
+            selectedClassId &&
             !loadingStudents &&
             students.length > 0 && (
               <p className="mt-2 text-xs text-slate-500">
@@ -752,11 +980,13 @@ export function CorrectionForm({
             )}
         </div>
 
+        {/* ===================================================== */}
         {/* VERIFICANDO CORREÇÃO */}
-        {loadingExistingCorrection &&
-          selectedStudentId && (
-            <div
-              className="
+        {/* ===================================================== */}
+
+        {loadingExistingCorrection && selectedStudentId && (
+          <div
+            className="
                 flex
                 items-center
                 gap-2
@@ -768,28 +998,29 @@ export function CorrectionForm({
                 text-sm
                 text-slate-600
               "
-            >
-              <LoaderCircle className="h-4 w-4 animate-spin" />
+          >
+            <LoaderCircle className="h-4 w-4 animate-spin" />
+            Verificando correções anteriores...
+          </div>
+        )}
 
-              Verificando correções anteriores...
-            </div>
-          )}
-
+        {/* ===================================================== */}
         {/* CORREÇÃO EXISTENTE */}
-        {!loadingExistingCorrection &&
-          existingCorrection && (
-            <div
-              className="
+        {/* ===================================================== */}
+
+        {!loadingExistingCorrection && existingCorrection && (
+          <div
+            className="
                 rounded-2xl
                 border
                 border-amber-200
                 bg-amber-50
                 p-4
               "
-            >
-              <div className="flex items-start gap-3">
-                <div
-                  className="
+          >
+            <div className="flex items-start gap-3">
+              <div
+                className="
                     flex
                     h-9
                     w-9
@@ -800,32 +1031,27 @@ export function CorrectionForm({
                     bg-amber-100
                     text-amber-700
                   "
-                >
-                  <AlertTriangle className="h-5 w-5" />
-                </div>
+              >
+                <AlertTriangle className="h-5 w-5" />
+              </div>
 
-                <div className="min-w-0 flex-1">
-                  <p className="font-semibold text-amber-900">
-                    Este aluno já possui uma correção
-                    para esta prova.
-                  </p>
+              <div className="min-w-0 flex-1">
+                <p className="font-semibold text-amber-900">
+                  Este aluno já possui uma correção para esta prova.
+                </p>
 
-                  <p className="mt-1 text-sm text-amber-800">
-                    Nota anterior:{" "}
-                    <strong>
-                      {Number(
-                        existingCorrection.score,
-                      ).toFixed(1)}
-                    </strong>{" "}
-                    ·{" "}
-                    {new Date(
-                      existingCorrection.createdAt,
-                    ).toLocaleString("pt-BR")}
-                  </p>
+                <p className="mt-1 text-sm text-amber-800">
+                  Nota anterior:{" "}
+                  <strong>{Number(existingCorrection.score).toFixed(1)}</strong>{" "}
+                  ·{" "}
+                  {new Date(existingCorrection.createdAt).toLocaleString(
+                    "pt-BR",
+                  )}
+                </p>
 
-                  <Link
-                    href={`/corrections/${existingCorrection.correctionId}`}
-                    className="
+                <Link
+                  href={`/corrections/${existingCorrection.correctionId}`}
+                  className="
                       mt-3
                       inline-flex
                       items-center
@@ -837,18 +1063,22 @@ export function CorrectionForm({
                       underline-offset-2
                       hover:text-amber-700
                     "
-                  >
-                    <Eye className="h-4 w-4" />
-                    Ver correção anterior
-                  </Link>
-                </div>
+                >
+                  <Eye className="h-4 w-4" />
+                  Ver correção anterior
+                </Link>
               </div>
             </div>
-          )}
+          </div>
+        )}
 
+        {/* ===================================================== */}
         {/* UPLOAD */}
+        {/* ===================================================== */}
+
         <div className="grid grid-cols-2 gap-4">
           {/* GALERIA */}
+
           <label
             htmlFor="gallery"
             className="
@@ -871,9 +1101,7 @@ export function CorrectionForm({
           >
             <Upload className="h-6 w-6" />
 
-            <span className="text-sm font-medium">
-              Enviar imagem
-            </span>
+            <span className="text-sm font-medium">Enviar imagem</span>
           </label>
 
           <input
@@ -885,6 +1113,7 @@ export function CorrectionForm({
           />
 
           {/* CAMERA */}
+
           <label
             htmlFor="camera"
             className="
@@ -907,9 +1136,7 @@ export function CorrectionForm({
           >
             <Camera className="h-6 w-6" />
 
-            <span className="text-sm font-medium">
-              Tirar foto
-            </span>
+            <span className="text-sm font-medium">Tirar foto</span>
           </label>
 
           <input
@@ -922,7 +1149,10 @@ export function CorrectionForm({
           />
         </div>
 
+        {/* ===================================================== */}
         {/* PREVIEW */}
+        {/* ===================================================== */}
+
         {selectedImage && (
           <div
             className="
@@ -931,17 +1161,16 @@ export function CorrectionForm({
               p-4
             "
           >
-            <p className="text-sm text-slate-600">
-              Arquivo selecionado:
-            </p>
+            <p className="text-sm text-slate-600">Arquivo selecionado:</p>
 
-            <p className="font-semibold text-slate-900">
-              {selectedImage.name}
-            </p>
+            <p className="font-semibold text-slate-900">{selectedImage.name}</p>
           </div>
         )}
 
+        {/* ===================================================== */}
         {/* ERRO */}
+        {/* ===================================================== */}
+
         {error && (
           <div
             className="
@@ -963,7 +1192,10 @@ export function CorrectionForm({
           </div>
         )}
 
+        {/* ===================================================== */}
         {/* BOTÃO */}
+        {/* ===================================================== */}
+
         <button
           type="submit"
           disabled={
@@ -971,6 +1203,7 @@ export function CorrectionForm({
             loadingStudents ||
             loadingExistingCorrection ||
             !selectedExamId ||
+            !selectedClassId ||
             !selectedStudentId ||
             !selectedImage
           }

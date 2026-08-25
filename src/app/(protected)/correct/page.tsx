@@ -1,6 +1,8 @@
 import { connectDatabase } from "@/lib/database";
 import { currentUserId } from "@/lib/session";
+
 import { ExamModel } from "@/features/exams/exam.model";
+
 import CorrectPageClient from "./correct-page-client";
 
 export default async function CorrectPage({
@@ -32,6 +34,12 @@ export default async function CorrectPage({
         id: exam._id.toString(),
         title: exam.title,
         questionCount: exam.questionCount,
+        classes: Array.isArray(exam.classes)
+          ? exam.classes.map((item: any) => ({
+              id: item.classId.toString(),
+              name: item.className,
+            }))
+          : [],
       }))}
       initialExamId={params.examId ?? ""}
       initialStudentId={params.studentId ?? ""}

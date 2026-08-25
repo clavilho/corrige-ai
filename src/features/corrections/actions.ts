@@ -29,6 +29,14 @@ const ALL_ALTERNATIVES = ["A", "B", "C", "D", "E", "F"] as const;
 const requestSchema = z.object({
   examId: z.string().min(1),
 
+  /**
+   * Turma selecionada para a correção.
+   *
+   * Mesmo que a prova possua apenas uma turma,
+   * o frontend enviará o classId dela.
+   */
+  classId: z.string().min(1),
+
   studentId: z.string().min(1),
 
   studentName: z.string().trim().min(1).max(120),
@@ -259,21 +267,41 @@ export async function createCorrection(input: unknown) {
   }
 
   // ============================================================
-  // 2. CONFIRMA QUE O ALUNO PERTENCE À TURMA
+  // 2. VALIDA AS TURMAS DA PROVA
+  // ============================================================
+
+  if (!Array.isArray(exam.classes) || exam.classes.length === 0) {
+    throw new Error("A prova não possui nenhuma turma associada.");
+  }
+
+  // ============================================================
+  // 3. VALIDA A TURMA SELECIONADA
+  // ============================================================
+
+  const selectedClass = exam.classes.find(
+    (item) => item.classId.toString() === data.classId,
+  );
+
+  if (!selectedClass) {
+    throw new Error("A turma selecionada não está associada a esta prova.");
+  }
+
+  // ============================================================
+  // 4. CONFIRMA QUE O ALUNO PERTENCE À TURMA
   // ============================================================
 
   const student = await StudentModel.findOne({
     _id: data.studentId,
     teacherId,
-    classId: exam.classId,
+    classId: data.classId,
   });
 
   if (!student) {
-    throw new Error("Aluno não pertence à turma desta prova.");
+    throw new Error("Aluno não pertence à turma selecionada.");
   }
 
   // ============================================================
-  // 3. VERIFICA SE JÁ EXISTE CORREÇÃO
+  // 5. VERIFICA SE JÁ EXISTE CORREÇÃO
   // ============================================================
 
   const existingCorrection = await CorrectionModel.findOne({
@@ -300,7 +328,7 @@ export async function createCorrection(input: unknown) {
   }
 
   // ============================================================
-  // 4. VALIDA GABARITO
+  // 6. VALIDA GABARITO
   // ============================================================
 
   if (
@@ -311,7 +339,7 @@ export async function createCorrection(input: unknown) {
   }
 
   // ============================================================
-  // 5. ALTERNATIVAS
+  // 7. ALTERNATIVAS
   // ============================================================
 
   const alternatives = ALL_ALTERNATIVES.slice(0, exam.alternativeCount);
@@ -321,7 +349,7 @@ export async function createCorrection(input: unknown) {
   }
 
   // ============================================================
-  // 6. ENVIA A IMAGEM PARA O GEMINI
+  // 8. ENVIA A IMAGEM PARA O GEMINI
   // ============================================================
 
   const reading = await readAnswerSheet(data.imageDataUrl, exam.questionCount, [
@@ -329,18 +357,18 @@ export async function createCorrection(input: unknown) {
   ]);
 
   // ============================================================
-  // 7. TOTAL DE PONTOS
+  // 9. TOTAL DE PONTOS
   // ============================================================
 
   const totalPoints =
     typeof (exam as any).totalPoints === "number"
       ? (exam as any).totalPoints
-      : typeof (exam as any).examGrade === "number"
-        ? (exam as any).examGrade
+      : typeof exam.examGrade === "number"
+        ? exam.examGrade
         : 100;
 
   // ============================================================
-  // 8. CALCULA A NOTA
+  // 10. CALCULA A NOTA
   // ============================================================
 
   const scoreResult = scoreAnswers(
@@ -376,8 +404,7 @@ export async function createCorrection(input: unknown) {
       : scoreResult.legacyScore;
 
   // ============================================================
-  // 9. SE EXISTIA CORREÇÃO E USUÁRIO CONFIRMOU,
-  //    REMOVE A CORREÇÃO ANTERIOR
+  // 11. REMOVE CORREÇÃO ANTERIOR
   // ============================================================
 
   if (existingCorrection && data.replaceExisting) {
@@ -385,10 +412,6 @@ export async function createCorrection(input: unknown) {
       _id: existingCorrection._id,
       teacherId,
     });
-
-    // ----------------------------------------------------------
-    // Remove também a nota antiga do aluno
-    // ----------------------------------------------------------
 
     await StudentModel.updateOne(
       {
@@ -406,7 +429,7 @@ export async function createCorrection(input: unknown) {
   }
 
   // ============================================================
-  // 10. CRIA A NOVA CORREÇÃO
+  // 12. CRIA A NOVA CORREÇÃO
   // ============================================================
 
   const correction = await CorrectionModel.create({
@@ -444,7 +467,7 @@ export async function createCorrection(input: unknown) {
   }
 
   // ============================================================
-  // 11. ADICIONA A NOVA NOTA AO ALUNO
+  // 13. ADICIONA A NOVA NOTA AO ALUNO
   // ============================================================
 
   await StudentModel.findByIdAndUpdate(
@@ -470,13 +493,13 @@ export async function createCorrection(input: unknown) {
   );
 
   // ============================================================
-  // 12. ID DA CORREÇÃO
+  // 14. ID DA CORREÇÃO
   // ============================================================
 
   const correctionId = (correction._id ?? correction.id).toString();
 
   // ============================================================
-  // 13. INVALIDA CACHE
+  // 15. INVALIDA CACHE
   // ============================================================
 
   revalidatePath("/dashboard");
@@ -486,7 +509,7 @@ export async function createCorrection(input: unknown) {
   revalidatePath("/correct");
 
   // ============================================================
-  // 14. RETORNO
+  // 16. RETORNO
   // ============================================================
 
   return {
@@ -560,32 +583,58 @@ export async function deleteCorrection(formData: FormData) {
 // GET STUDENTS BY EXAM
 // ================================================================
 
-export async function getStudentsByExam(examId: string) {
+export async function getStudentsByExam(examId: string, classId: string) {
   const teacherId = await requireTeacher();
 
   await connectDatabase();
+
+  // ============================================================
+  // BUSCA A PROVA
+  // ============================================================
 
   const exam = await ExamModel.findOne({
     _id: examId,
     teacherId,
   })
-    .select("classId")
+    .select("classes")
     .lean();
 
   if (!exam) {
     throw new Error("Prova não encontrada.");
   }
 
-  if (!exam.classId) {
-    throw new Error("A prova não possui uma turma associada.");
+  // ============================================================
+  // VALIDA TURMAS
+  // ============================================================
+
+  if (!Array.isArray(exam.classes) || exam.classes.length === 0) {
+    throw new Error("A prova não possui turmas associadas.");
   }
+
+  // ============================================================
+  // VERIFICA SE A TURMA PERTENCE À PROVA
+  // ============================================================
+
+  const examClass = exam.classes.find(
+    (item) => item.classId.toString() === classId,
+  );
+
+  if (!examClass) {
+    throw new Error("A turma selecionada não está associada a esta prova.");
+  }
+
+  // ============================================================
+  // BUSCA ALUNOS DA TURMA
+  // ============================================================
 
   const students = await StudentModel.find({
     teacherId,
-    classId: exam.classId,
+    classId,
   })
     .select("_id name registration")
-    .sort({ name: 1 })
+    .sort({
+      name: 1,
+    })
     .lean();
 
   return students.map((student) => ({

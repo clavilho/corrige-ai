@@ -1,10 +1,10 @@
-import {
-  InferSchemaType,
-  Model,
-  Schema,
-  model,
-  models,
-} from "mongoose";
+import { InferSchemaType, Model, Schema, model, models } from "mongoose";
+
+/**
+ * ============================================================
+ * ANSWER SCHEMA
+ * ============================================================
+ */
 
 const answerSchema = new Schema(
   {
@@ -26,27 +26,91 @@ const answerSchema = new Schema(
   },
 );
 
-const examSchema = new Schema(
+/**
+ * ============================================================
+ * CLASS SCHEMA
+ * ============================================================
+ *
+ * Uma prova pode pertencer a uma ou várias turmas.
+ *
+ * Exemplo:
+ *
+ * classes: [
+ *   {
+ *     classId: ObjectId("..."),
+ *     className: "3º Ano A",
+ *   },
+ *   {
+ *     classId: ObjectId("..."),
+ *     className: "3º Ano B",
+ *   },
+ * ]
+ *
+ * Guardamos o ID e o nome juntos para manter
+ * a relação entre eles mesmo que o nome da turma
+ * seja alterado posteriormente.
+ */
+
+const classSchema = new Schema(
   {
-    teacherId: {
-      type: Schema.Types.ObjectId,
-      required: true,
-      index: true,
-    },
     classId: {
       type: Schema.Types.ObjectId,
       ref: "Class",
       required: true,
     },
+
     className: {
       type: String,
       required: true,
       trim: true,
     },
+  },
+  {
+    _id: false,
+  },
+);
+
+/**
+ * ============================================================
+ * EXAM SCHEMA
+ * ============================================================
+ */
+
+const examSchema = new Schema(
+  {
+    /**
+     * Professor responsável pela prova.
+     */
+    teacherId: {
+      type: Schema.Types.ObjectId,
+      required: true,
+      index: true,
+    },
 
     /**
-     * Nome da prova.
+     * ========================================================
+     * TURMAS
+     * ========================================================
+     *
+     * Uma mesma prova pode pertencer a várias turmas.
      */
+    classes: {
+      type: [classSchema],
+      required: true,
+
+      validate: {
+        validator: (classes: unknown[]) => classes.length > 0,
+
+        message: "A prova deve possuir pelo menos uma turma.",
+      },
+    },
+
+    /**
+     * ========================================================
+     * DADOS DA PROVA
+     * ========================================================
+     */
+
     title: {
       type: String,
       required: true,
@@ -54,9 +118,6 @@ const examSchema = new Schema(
       maxlength: 160,
     },
 
-    /**
-     * Disciplina.
-     */
     subject: {
       type: String,
       default: "",
@@ -64,17 +125,17 @@ const examSchema = new Schema(
       maxlength: 120,
     },
 
-    /**
-     * Data da prova.
-     */
     examDate: {
       type: Date,
       default: null,
     },
 
     /**
-     * Quantidade de questões.
+     * ========================================================
+     * CONFIGURAÇÕES
+     * ========================================================
      */
+
     questionCount: {
       type: Number,
       required: true,
@@ -82,9 +143,6 @@ const examSchema = new Schema(
       max: 120,
     },
 
-    /**
-     * Quantidade de alternativas por questão.
-     */
     alternativeCount: {
       type: Number,
       required: true,
@@ -92,15 +150,19 @@ const examSchema = new Schema(
       max: 6,
     },
 
-    /**
-     * Nota máxima da prova.
-     */
     examGrade: {
       type: Number,
       required: true,
       min: 5,
       max: 100,
     },
+
+    /**
+     * ========================================================
+     * GABARITO
+     * ========================================================
+     */
+
     answerKey: {
       type: [answerSchema],
       default: [],
@@ -112,16 +174,54 @@ const examSchema = new Schema(
 );
 
 /**
- * Índice para buscar rapidamente
- * as provas do professor.
+ * ============================================================
+ * INDEXES
+ * ============================================================
+ */
+
+/**
+ * Busca as provas do professor
+ * mais rapidamente.
  */
 examSchema.index({
   teacherId: 1,
   createdAt: -1,
 });
 
+/**
+ * Busca provas por turma.
+ *
+ * IMPORTANTE:
+ *
+ * O campo antigo era:
+ *
+ * classIds
+ *
+ * Agora o ID está dentro de:
+ *
+ * classes.classId
+ */
+examSchema.index({
+  teacherId: 1,
+  "classes.classId": 1,
+});
+
+/**
+ * ============================================================
+ * TYPE
+ * ============================================================
+ */
+
 export type Exam = InferSchemaType<typeof examSchema>;
 
-export const ExamModel: Model<Exam> =
-  models.Exam ??
-  model<Exam>("Exam", examSchema);
+/**
+ * ============================================================
+ * MODEL
+ * ============================================================
+ */
+
+if (models.Exam) {
+  delete models.Exam;
+}
+
+export const ExamModel: Model<Exam> = model<Exam>("Exam", examSchema);

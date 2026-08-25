@@ -19,29 +19,43 @@ export function NewExamForm({ classes }: NewExamFormProps) {
   const router = useRouter();
 
   const [questionCount, setQuestionCount] = useState<number | "">(10);
+
   const [alternativeCount, setAlternativeCount] = useState(5);
-  const [selectedClassId, setSelectedClassId] = useState("");
+
+  const [selectedClassIds, setSelectedClassIds] = useState<string[]>([]);
+
   const [answerKey, setAnswerKey] = useState<Record<number, string>>({});
+
   const [isSubmitting, setIsSubmitting] = useState(false);
+
   const [error, setError] = useState<string | null>(null);
 
-  /*
-   * Quantidade de questões que já possuem uma resposta.
-   */
+  // ============================================================
+  // QUESTÕES RESPONDIDAS
+  // ============================================================
+
   const answeredQuestions =
     typeof questionCount === "number"
-      ? Array.from({ length: questionCount }, (_, index) => index + 1).filter(
-          (question) => Boolean(answerKey[question]),
-        ).length
+      ? Array.from(
+          {
+            length: questionCount,
+          },
+          (_, index) => index + 1,
+        ).filter((question) => Boolean(answerKey[question])).length
       : 0;
 
-  /*
-   * Verifica se todas as questões foram respondidas.
-   */
+  // ============================================================
+  // GABARITO COMPLETO
+  // ============================================================
+
   const isAnswerKeyComplete =
     typeof questionCount === "number" &&
     questionCount > 0 &&
     answeredQuestions === questionCount;
+
+  // ============================================================
+  // ALTERA QUANTIDADE DE QUESTÕES
+  // ============================================================
 
   function handleQuestionCountChange(value: string) {
     if (value === "") {
@@ -73,6 +87,10 @@ export function NewExamForm({ classes }: NewExamFormProps) {
     });
   }
 
+  // ============================================================
+  // ALTERA QUANTIDADE DE ALTERNATIVAS
+  // ============================================================
+
   function handleAlternativeCountChange(value: number) {
     setAlternativeCount(value);
 
@@ -91,6 +109,40 @@ export function NewExamForm({ classes }: NewExamFormProps) {
     });
   }
 
+  // ============================================================
+  // ALTERA TURMAS SELECIONADAS
+  // ============================================================
+
+  function handleClassChange(classId: string) {
+    setSelectedClassIds((current) => {
+      if (current.includes(classId)) {
+        return current.filter((id) => id !== classId);
+      }
+
+      return [...current, classId];
+    });
+
+    setError(null);
+  }
+
+  // ============================================================
+  // SELECIONAR TODAS AS TURMAS
+  // ============================================================
+
+  function handleSelectAllClasses() {
+    if (selectedClassIds.length === classes.length) {
+      setSelectedClassIds([]);
+    } else {
+      setSelectedClassIds(classes.map((classItem) => classItem.id));
+    }
+
+    setError(null);
+  }
+
+  // ============================================================
+  // ALTERA RESPOSTA DO GABARITO
+  // ============================================================
+
   function handleAnswerChange(question: number, answer: string) {
     setAnswerKey((current) => ({
       ...current,
@@ -100,56 +152,120 @@ export function NewExamForm({ classes }: NewExamFormProps) {
     setError(null);
   }
 
+  // ============================================================
+  // SUBMIT
+  // ============================================================
+
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     setError(null);
 
+    // ----------------------------------------------------------
+    // Validação da quantidade de questões
+    // ----------------------------------------------------------
+
     if (questionCount === "" || questionCount < 1 || questionCount > 100) {
       setError("Informe uma quantidade de questões entre 1 e 100.");
+
       return;
     }
 
-    if (!selectedClassId) {
-      setError("Selecione uma turma.");
+    // ----------------------------------------------------------
+    // Validação das turmas
+    // ----------------------------------------------------------
+
+    if (selectedClassIds.length === 0) {
+      setError("Selecione pelo menos uma turma.");
+
       return;
     }
+
+    // ----------------------------------------------------------
+    // Validação do gabarito
+    // ----------------------------------------------------------
 
     if (!isAnswerKeyComplete) {
       setError("Preencha o gabarito de todas as questões.");
+
       return;
     }
 
+    // ----------------------------------------------------------
+    // Validação nativa do formulário
+    // ----------------------------------------------------------
+
     if (!event.currentTarget.checkValidity()) {
       event.currentTarget.reportValidity();
+
       return;
     }
 
     const formData = new FormData(event.currentTarget);
 
-    const selectedClass = classes.find(
-      (classItem) => classItem.id === selectedClassId,
+    // ----------------------------------------------------------
+    // TURMAS
+    // ----------------------------------------------------------
+    //
+    // A interface trabalha somente com os IDs selecionados.
+    //
+    // Porém, o backend agora espera:
+    //
+    // classes: [
+    //   {
+    //     classId: "...",
+    //     className: "..."
+    //   }
+    // ]
+    //
+    // Então fazemos a conversão aqui.
+    // ----------------------------------------------------------
+
+    const selectedClasses = classes.filter((classItem) =>
+      selectedClassIds.includes(classItem.id),
     );
 
-    if (!selectedClass) {
-      setError("A turma selecionada não foi encontrada.");
+    if (selectedClasses.length === 0) {
+      setError("As turmas selecionadas não foram encontradas.");
+
       return;
     }
 
-    formData.set("classId", selectedClass.id);
+    const examClasses = selectedClasses.map((classItem) => ({
+      classId: classItem.id,
+      className: classItem.name,
+    }));
 
-    formData.set("className", selectedClass.name);
+    formData.set("classes", JSON.stringify(examClasses));
+
+    // ----------------------------------------------------------
+    // CONFIGURAÇÕES
+    // ----------------------------------------------------------
 
     formData.set("questionCount", String(questionCount));
 
     formData.set("alternativeCount", String(alternativeCount));
 
-    const answers = Array.from({ length: questionCount }, (_, index) => ({
-      questionNumber: index + 1,
-      correctAnswer: answerKey[index + 1] ?? "",
-    }));
+    // ----------------------------------------------------------
+    // GABARITO
+    // ----------------------------------------------------------
+
+    const answers = Array.from(
+      {
+        length: questionCount,
+      },
+      (_, index) => ({
+        questionNumber: index + 1,
+        correctAnswer: answerKey[index + 1] ?? "",
+      }),
+    );
 
     formData.set("answerKey", JSON.stringify(answers));
+
+    // ----------------------------------------------------------
+    // ENVIO
+    // ----------------------------------------------------------
+
     try {
       setIsSubmitting(true);
 
@@ -168,11 +284,15 @@ export function NewExamForm({ classes }: NewExamFormProps) {
     }
   }
 
+  // ============================================================
+  // RENDER
+  // ============================================================
+
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
-      {/* ========================================================= */}
-      {/* DADOS DA PROVA */}
-      {/* ========================================================= */}
+      {/* =======================================================
+          DADOS DA PROVA
+      ======================================================= */}
 
       <section>
         <div className="mb-6">
@@ -187,6 +307,7 @@ export function NewExamForm({ classes }: NewExamFormProps) {
 
         <div className="space-y-5">
           {/* Nome + Data */}
+
           <div className="grid grid-cols-1 gap-5 md:grid-cols-[1fr_190px]">
             <div>
               <label
@@ -255,98 +376,160 @@ export function NewExamForm({ classes }: NewExamFormProps) {
             </div>
           </div>
 
-          {/* Disciplina + Turma */}
-          <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-            <div>
-              <label
-                htmlFor="subject"
-                className="mb-2 block text-sm font-medium text-slate-700"
-              >
-                Disciplina
+          {/* Disciplina */}
+
+          <div>
+            <label
+              htmlFor="subject"
+              className="mb-2 block text-sm font-medium text-slate-700"
+            >
+              Disciplina
+            </label>
+
+            <input
+              id="subject"
+              name="subject"
+              type="text"
+              required
+              placeholder="Ex.: Matemática"
+              className="
+                w-full
+                rounded-xl
+                border
+                border-slate-200
+                bg-white
+                px-4
+                py-3
+                text-sm
+                text-slate-900
+                outline-none
+                transition
+                placeholder:text-slate-400
+                focus:border-[#006F72]
+                focus:ring-2
+                focus:ring-[#006F72]/10
+              "
+            />
+          </div>
+
+          {/* ===================================================
+              TURMAS
+          =================================================== */}
+
+          <div>
+            <div className="mb-2 flex items-center justify-between">
+              <label className="block text-sm font-medium text-slate-700">
+                Turmas
               </label>
 
-              <input
-                id="subject"
-                name="subject"
-                type="text"
-                required
-                placeholder="Ex.: Matemática"
-                className="
-                  w-full
-                  rounded-xl
-                  border
-                  border-slate-200
-                  bg-white
-                  px-4
-                  py-3
-                  text-sm
-                  text-slate-900
-                  outline-none
-                  transition
-                  placeholder:text-slate-400
-                  focus:border-[#006F72]
-                  focus:ring-2
-                  focus:ring-[#006F72]/10
-                "
-              />
+              {classes.length > 0 && (
+                <button
+                  type="button"
+                  onClick={handleSelectAllClasses}
+                  className="
+                    text-xs
+                    font-medium
+                    text-[#006F72]
+                    transition
+                    hover:text-[#005B5E]
+                  "
+                >
+                  {selectedClassIds.length === classes.length
+                    ? "Desmarcar todas"
+                    : "Selecionar todas"}
+                </button>
+              )}
             </div>
 
-            <div>
-              <label
-                htmlFor="classId"
-                className="mb-2 block text-sm font-medium text-slate-700"
-              >
-                Turma
-              </label>
+            <div
+              className="
+                overflow-hidden
+                rounded-xl
+                border
+                border-slate-200
+                bg-white
+              "
+            >
+              {classes.length === 0 ? (
+                <div className="px-4 py-6 text-center">
+                  <p className="text-sm text-slate-500">
+                    Nenhuma turma cadastrada.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2">
+                  {classes.map((classItem) => {
+                    const selected = selectedClassIds.includes(classItem.id);
 
-              <select
-                id="classId"
-                name="classId"
-                required
-                value={selectedClassId}
-                onChange={(event) => setSelectedClassId(event.target.value)}
-                className="
-                  w-full
-                  rounded-xl
-                  border
-                  border-slate-200
-                  bg-white
-                  px-4
-                  py-3
-                  text-sm
-                  text-slate-900
-                  outline-none
-                  transition
-                  focus:border-[#006F72]
-                  focus:ring-2
-                  focus:ring-[#006F72]/10
-                "
-              >
-                <option value="" disabled>
-                  Selecione uma turma
-                </option>
+                    return (
+                      <label
+                        key={classItem.id}
+                        className={`
+                          flex
+                          cursor-pointer
+                          items-center
+                          gap-3
+                          border-b
+                          border-slate-100
+                          px-4
+                          py-3
+                          transition
+                          last:border-b-0
+                          ${selected ? "bg-[#006F72]/5" : "hover:bg-slate-50"}
+                        `}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selected}
+                          onChange={() => handleClassChange(classItem.id)}
+                          className="
+                            h-4
+                            w-4
+                            rounded
+                            border-slate-300
+                            text-[#006F72]
+                            focus:ring-[#006F72]
+                          "
+                        />
 
-                {classes.map((classItem) => (
-                  <option key={classItem.id} value={classItem.id}>
-                    {classItem.name}
-                  </option>
-                ))}
-              </select>
+                        <span
+                          className={`
+                            text-sm
+                            ${
+                              selected
+                                ? "font-medium text-[#006F72]"
+                                : "text-slate-700"
+                            }
+                          `}
+                        >
+                          {classItem.name}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
 
-              <input
-                type="hidden"
-                name="className"
-                value={
-                  classes.find((classItem) => classItem.id === selectedClassId)
-                    ?.name ?? ""
-                }
-              />
+            <div className="mt-2 flex items-center justify-between">
+              <p className="text-xs text-slate-500">
+                Selecione uma ou mais turmas.
+              </p>
+
+              <p className="text-xs font-medium text-slate-600">
+                {selectedClassIds.length} selecionada
+                {selectedClassIds.length !== 1 ? "s" : ""}
+              </p>
             </div>
           </div>
 
-          {/* Configurações */}
+          {/* ===================================================
+              CONFIGURAÇÕES
+          =================================================== */}
+
           <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
-            {/* Quantidade de questões */}
+            {/* Questões */}
+
             <div>
               <label
                 htmlFor="questionCount"
@@ -386,6 +569,7 @@ export function NewExamForm({ classes }: NewExamFormProps) {
             </div>
 
             {/* Alternativas */}
+
             <div>
               <label
                 htmlFor="alternativeCount"
@@ -431,6 +615,7 @@ export function NewExamForm({ classes }: NewExamFormProps) {
             </div>
 
             {/* Nota */}
+
             <div>
               <label
                 htmlFor="totalPoints"
@@ -469,9 +654,9 @@ export function NewExamForm({ classes }: NewExamFormProps) {
         </div>
       </section>
 
-      {/* ========================================================= */}
-      {/* GABARITO */}
-      {/* ========================================================= */}
+      {/* =======================================================
+          GABARITO
+      ======================================================= */}
 
       <section className="border-t border-slate-100 pt-8">
         <div className="mb-5">
@@ -484,13 +669,17 @@ export function NewExamForm({ classes }: NewExamFormProps) {
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           {typeof questionCount === "number" &&
-            Array.from({ length: questionCount }, (_, index) => {
-              const question = index + 1;
+            Array.from(
+              {
+                length: questionCount,
+              },
+              (_, index) => {
+                const question = index + 1;
 
-              return (
-                <div
-                  key={question}
-                  className="
+                return (
+                  <div
+                    key={question}
+                    className="
                       flex
                       min-h-[60px]
                       items-center
@@ -505,27 +694,27 @@ export function NewExamForm({ classes }: NewExamFormProps) {
                       transition
                       hover:border-slate-300
                     "
-                >
-                  <span className="shrink-0 text-sm font-semibold text-slate-700">
-                    Questão {question}
-                  </span>
+                  >
+                    <span className="shrink-0 text-sm font-semibold text-slate-700">
+                      Questão {question}
+                    </span>
 
-                  <div className="flex gap-1.5">
-                    {alternatives
-                      .slice(0, alternativeCount)
-                      .map((alternative) => {
-                        const selected = answerKey[question] === alternative;
+                    <div className="flex gap-1.5">
+                      {alternatives
+                        .slice(0, alternativeCount)
+                        .map((alternative) => {
+                          const selected = answerKey[question] === alternative;
 
-                        return (
-                          <button
-                            key={alternative}
-                            type="button"
-                            onClick={() =>
-                              handleAnswerChange(question, alternative)
-                            }
-                            aria-label={`Questão ${question}, alternativa ${alternative}`}
-                            aria-pressed={selected}
-                            className={`
+                          return (
+                            <button
+                              key={alternative}
+                              type="button"
+                              onClick={() =>
+                                handleAnswerChange(question, alternative)
+                              }
+                              aria-label={`Questão ${question}, alternativa ${alternative}`}
+                              aria-pressed={selected}
+                              className={`
                                 flex
                                 h-9
                                 w-9
@@ -542,18 +731,20 @@ export function NewExamForm({ classes }: NewExamFormProps) {
                                     : "border-slate-200 bg-white text-slate-600 hover:border-[#006F72] hover:text-[#006F72]"
                                 }
                               `}
-                          >
-                            {alternative}
-                          </button>
-                        );
-                      })}
+                            >
+                              {alternative}
+                            </button>
+                          );
+                        })}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              },
+            )}
         </div>
 
-        {/* Progresso do gabarito */}
+        {/* Progresso */}
+
         <div className="mt-5 flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
           <span className="text-sm text-slate-600">Progresso do gabarito</span>
 
@@ -568,9 +759,9 @@ export function NewExamForm({ classes }: NewExamFormProps) {
         </div>
       </section>
 
-      {/* ========================================================= */}
-      {/* ERRO */}
-      {/* ========================================================= */}
+      {/* =======================================================
+          ERRO
+      ======================================================= */}
 
       {error && (
         <div
@@ -589,9 +780,9 @@ export function NewExamForm({ classes }: NewExamFormProps) {
         </div>
       )}
 
-      {/* ========================================================= */}
-      {/* AÇÕES */}
-      {/* ========================================================= */}
+      {/* =======================================================
+          AÇÕES
+      ======================================================= */}
 
       <div className="flex flex-col-reverse gap-3 border-t border-slate-100 pt-6 sm:flex-row sm:justify-end">
         <button
@@ -619,7 +810,11 @@ export function NewExamForm({ classes }: NewExamFormProps) {
 
         <button
           type="submit"
-          disabled={isSubmitting || !isAnswerKeyComplete}
+          disabled={
+            isSubmitting ||
+            !isAnswerKeyComplete ||
+            selectedClassIds.length === 0
+          }
           className={`
             rounded-xl
             px-6
@@ -629,7 +824,9 @@ export function NewExamForm({ classes }: NewExamFormProps) {
             shadow-sm
             transition
             ${
-              isAnswerKeyComplete && !isSubmitting
+              isAnswerKeyComplete &&
+              selectedClassIds.length > 0 &&
+              !isSubmitting
                 ? "bg-[#006F72] text-white hover:bg-[#005B5E]"
                 : "cursor-not-allowed bg-slate-200 text-slate-400"
             }
