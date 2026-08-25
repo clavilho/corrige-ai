@@ -36,7 +36,7 @@ export default async function ExamsPage() {
         </div>
 
         <Link
-          href="/exams/new"
+          href="/exams/form"
           className="
             inline-flex
             items-center
