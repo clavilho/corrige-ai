@@ -12,6 +12,7 @@ export interface ICorrection {
   teacherId: mongoose.Types.ObjectId;
   examId: mongoose.Types.ObjectId;
   studentName: string;
+  studentId: mongoose.Types.ObjectId;
   imageDataUrl: string;
   detectedAnswers: DetectedAnswer[];
   answers: AnswerRow[];
@@ -20,7 +21,6 @@ export interface ICorrection {
   correctAnswers: number;
   unidentified: number;
   wrongAnswers: number;
-  // score: oficial (baseado em totalPoints), legacyScore: 0..10
   score: number;
   legacyScore: number;
   totalPoints: number;
@@ -46,9 +46,19 @@ const AnswerRowSchema = new mongoose.Schema(
 );
 
 const CorrectionSchema = new mongoose.Schema<ICorrection>({
-  teacherId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+  teacherId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    required: true,
+  },
   examId: { type: mongoose.Schema.Types.ObjectId, ref: "Exam", required: true },
   studentName: { type: String, required: true },
+
+  studentId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Student",
+    required: true,
+  },
 
   imageDataUrl: { type: String, required: true },
 
@@ -72,5 +82,10 @@ const CorrectionSchema = new mongoose.Schema<ICorrection>({
 
 // export typed model (handles hot reload in dev)
 export const CorrectionModel =
-  (mongoose.models.Correction as mongoose.Model<ICorrection & mongoose.Document>) ||
-  mongoose.model<ICorrection & mongoose.Document>("Correction", CorrectionSchema);
+  (mongoose.models.Correction as mongoose.Model<
+    ICorrection & mongoose.Document
+  >) ||
+  mongoose.model<ICorrection & mongoose.Document>(
+    "Correction",
+    CorrectionSchema,
+  );

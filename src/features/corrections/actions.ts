@@ -9,25 +9,46 @@ import { connectDatabase } from "@/lib/database";
 import { currentUserId } from "@/lib/session";
 
 import { ExamModel } from "@/features/exams/exam.model";
+import { StudentModel } from "@/features/students/student.model";
+
 import { CorrectionModel } from "./correction.model";
 import { DetectedAnswer, scoreAnswers } from "./scoring";
 
+import { buildAnswerSheetPrompt } from "./prompts/answer-sheet.prompt";
+
+// ================================================================
+// CONSTANTES
+// ================================================================
+
+const ALL_ALTERNATIVES = ["A", "B", "C", "D", "E", "F"] as const;
+
+// ================================================================
+// SCHEMAS
+// ================================================================
+
 const requestSchema = z.object({
   examId: z.string().min(1),
+
+  /**
+   * Turma selecionada para a correção.
+   *
+   * Mesmo que a prova possua apenas uma turma,
+   * o frontend enviará o classId dela.
+   */
+  classId: z.string().min(1),
+
+  studentId: z.string().min(1),
+
   studentName: z.string().trim().min(1).max(120),
+
   imageDataUrl: z.string().startsWith("data:image/").max(6_000_000),
+
+  replaceExisting: z.boolean().optional().default(false),
 });
 
-const readingSchema = z.object({
-  answers: z.array(
-    z.object({
-      question: z.number().int().positive(),
-      answer: z.string().nullable(),
-    }),
-  ),
-  image_quality: z.enum(["boa", "regular", "ruim"]).optional(),
-  notes: z.string().max(300).optional(),
-});
+// ================================================================
+// AUTH
+// ================================================================
 
 async function requireTeacher() {
   const id = await currentUserId();
@@ -38,6 +59,10 @@ async function requireTeacher() {
 
   return id;
 }
+
+// ================================================================
+// READ ANSWER SHEET
+// ================================================================
 
 async function readAnswerSheet(
   imageDataUrl: string,
@@ -57,47 +82,55 @@ async function readAnswerSheet(
     apiKey,
   });
 
+  // ============================================================
+  // SEPARA MIME TYPE E BASE64
+  // ============================================================
+
   const [header, base64] = imageDataUrl.split(",");
+
+  if (!base64) {
+    throw new Error("Imagem inválida ou corrompida.");
+  }
 
   const mimeType = header.match(/data:(.*);base64/)?.[1] ?? "image/jpeg";
 
-  const prompt = `
-Você é um corretor de gabaritos de provas.
+  // ============================================================
+  // PROMPT
+  // ============================================================
 
-Analise a imagem enviada.
+  const prompt = buildAnswerSheetPrompt(questionCount, alternatives);
 
-Existem ${questionCount} questões.
+  // ============================================================
+  // SCHEMA DA RESPOSTA DO GEMINI
+  // ============================================================
 
-As alternativas possíveis são:
+  const answerSchema = z.object({
+    question: z.number().int().min(1).max(questionCount),
 
-${alternatives.join(", ")}
+    answer: z
+      .string()
+      .transform((value) => value.trim().toUpperCase())
+      .refine((value) => alternatives.includes(value), {
+        message: "Alternativa inválida.",
+      })
+      .nullable(),
+  });
 
-Para cada questão:
+  const readingSchema = z.object({
+    answers: z.array(answerSchema).length(questionCount),
 
-- identifique apenas UMA alternativa;
-- se houver duas marcações,
-  nenhuma marcação
-  ou estiver ilegível,
-  responda null.
+    image_quality: z.enum(["boa", "regular", "ruim"]).optional(),
 
-Responda SOMENTE JSON.
+    notes: z.string().max(300).optional(),
+  });
 
-Formato obrigatório:
-
-{
-  "answers": [
-    {
-      "question": 1,
-      "answer": "A"
-    }
-  ],
-  "image_quality":"boa",
-  "notes":""
-}
-`;
+  // ============================================================
+  // ENVIA IMAGEM PARA O GEMINI
+  // ============================================================
 
   const response = await ai.models.generateContent({
     model: process.env.GEMINI_MODEL ?? "gemini-3.6-flash",
+
     contents: [
       {
         inlineData: {
@@ -109,68 +142,194 @@ Formato obrigatório:
         text: prompt,
       },
     ],
+
     config: {
       responseMimeType: "application/json",
     },
   });
 
+  // ============================================================
+  // VALIDA RESPOSTA
+  // ============================================================
+
   if (!response.text) {
     throw new Error("Gemini não retornou conteúdo.");
   }
 
-  const json = response.text
-    .replace(/```json/g, "")
-    .replace(/```/g, "")
-    .trim();
+  let parsed: unknown;
 
-  const reading = readingSchema.parse(JSON.parse(json));
+  try {
+    parsed = JSON.parse(response.text);
+  } catch {
+    console.error("Resposta inválida do Gemini:", response.text);
+
+    throw new Error("O Gemini retornou uma resposta inválida.");
+  }
+
+  // ============================================================
+  // VALIDA COM ZOD
+  // ============================================================
+
+  const reading = readingSchema.safeParse(parsed);
+
+  if (!reading.success) {
+    console.error(
+      "Erro na validação da resposta do Gemini:",
+      reading.error.flatten(),
+    );
+
+    throw new Error(
+      "Não foi possível interpretar corretamente as respostas da prova.",
+    );
+  }
+
+  // ============================================================
+  // VALIDA QUESTÕES
+  // ============================================================
+
+  const questions = reading.data.answers.map((item) => item.question);
+
+  const uniqueQuestions = new Set(questions);
+
+  const allQuestionsPresent = Array.from(
+    { length: questionCount },
+    (_, index) => index + 1,
+  ).every((question) => uniqueQuestions.has(question));
+
+  if (uniqueQuestions.size !== questionCount || !allQuestionsPresent) {
+    console.error("Questões identificadas pelo Gemini:", questions);
+
+    throw new Error("O Gemini não identificou corretamente todas as questões.");
+  }
+
+  // ============================================================
+  // ORDENA QUESTÕES
+  // ============================================================
+
+  const detected: DetectedAnswer[] = reading.data.answers
+    .sort((a, b) => a.question - b.question)
+    .map((item) => ({
+      question: item.question,
+
+      answer: item.answer ? item.answer.trim().toUpperCase() : null,
+    }));
+
+  // ============================================================
+  // WARNINGS
+  // ============================================================
+
+  const warnings: string[] = [];
+
+  if (reading.data.image_quality === "ruim") {
+    warnings.push(
+      "A qualidade da imagem está baixa; confira o resultado manualmente.",
+    );
+  }
+
+  if (reading.data.image_quality === "regular") {
+    warnings.push(
+      "A qualidade da imagem é regular; confira questões com marcações pouco visíveis.",
+    );
+  }
+
+  if (reading.data.notes?.trim()) {
+    warnings.push(reading.data.notes.trim());
+  }
 
   return {
-    detected: reading.answers.map((item) => ({
-      question: item.question,
-      answer: item.answer
-        ? String(item.answer).trim().toUpperCase().slice(0, 1)
-        : null,
-    })),
-
-    warnings: [
-      reading.image_quality === "ruim"
-        ? "A qualidade da imagem está baixa; confira o resultado manualmente."
-        : "",
-      reading.notes ?? "",
-    ].filter(Boolean),
+    detected,
+    warnings,
   };
 }
 
+// ================================================================
+// CREATE CORRECTION
+// ================================================================
+
 export async function createCorrection(input: unknown) {
-  console.log("🚀 createCorrection iniciou");
-
   const data = requestSchema.parse(input);
-
-  console.log("📄 Dados recebidos:", {
-    examId: data.examId,
-    studentName: data.studentName,
-    imageSize: data.imageDataUrl.length,
-  });
 
   const teacherId = await requireTeacher();
 
-  console.log("👨‍🏫 Professor:", teacherId);
-
   await connectDatabase();
 
-  console.log("🗄️ Banco conectado");
+  // ============================================================
+  // 1. BUSCA A PROVA
+  // ============================================================
 
   const exam = await ExamModel.findOne({
     _id: data.examId,
     teacherId,
   });
 
-  console.log("📝 Prova encontrada:", !!exam);
-
   if (!exam) {
     throw new Error("Prova não encontrada.");
   }
+
+  // ============================================================
+  // 2. VALIDA AS TURMAS DA PROVA
+  // ============================================================
+
+  if (!Array.isArray(exam.classes) || exam.classes.length === 0) {
+    throw new Error("A prova não possui nenhuma turma associada.");
+  }
+
+  // ============================================================
+  // 3. VALIDA A TURMA SELECIONADA
+  // ============================================================
+
+  const selectedClass = exam.classes.find(
+    (item) => item.classId.toString() === data.classId,
+  );
+
+  if (!selectedClass) {
+    throw new Error("A turma selecionada não está associada a esta prova.");
+  }
+
+  // ============================================================
+  // 4. CONFIRMA QUE O ALUNO PERTENCE À TURMA
+  // ============================================================
+
+  const student = await StudentModel.findOne({
+    _id: data.studentId,
+    teacherId,
+    classId: data.classId,
+  });
+
+  if (!student) {
+    throw new Error("Aluno não pertence à turma selecionada.");
+  }
+
+  // ============================================================
+  // 5. VERIFICA SE JÁ EXISTE CORREÇÃO
+  // ============================================================
+
+  const existingCorrection = await CorrectionModel.findOne({
+    teacherId,
+    examId: exam._id,
+    studentId: student._id,
+  })
+    .select("_id score createdAt")
+    .lean();
+
+  if (existingCorrection && !data.replaceExisting) {
+    return {
+      alreadyExists: true,
+
+      correctionId: existingCorrection._id.toString(),
+
+      score: Number(existingCorrection.score ?? 0),
+
+      createdAt:
+        existingCorrection.createdAt instanceof Date
+          ? existingCorrection.createdAt.toISOString()
+          : new Date(existingCorrection.createdAt).toISOString(),
+    };
+  }
+
+  // ============================================================
+  // 6. VALIDA GABARITO
+  // ============================================================
 
   if (
     !Array.isArray(exam.answerKey) ||
@@ -179,35 +338,45 @@ export async function createCorrection(input: unknown) {
     throw new Error("Cadastre o gabarito completo antes de corrigir.");
   }
 
-  const alternatives = ["A", "B", "C", "D", "E", "F"].slice(
-    0,
-    exam.alternativeCount,
-  );
+  // ============================================================
+  // 7. ALTERNATIVAS
+  // ============================================================
 
-  console.log("🤖 Enviando imagem para Gemini");
+  const alternatives = ALL_ALTERNATIVES.slice(0, exam.alternativeCount);
 
-  const reading = await readAnswerSheet(
-    data.imageDataUrl,
-    exam.questionCount,
-    alternatives,
-  );
+  if (alternatives.length !== exam.alternativeCount) {
+    throw new Error("Quantidade de alternativas inválida.");
+  }
 
-  console.log("✅ Leitura Gemini:");
-  console.log(reading);
+  // ============================================================
+  // 8. ENVIA A IMAGEM PARA O GEMINI
+  // ============================================================
 
-  // chama a função de scoring passando totalPoints e questionCount
+  const reading = await readAnswerSheet(data.imageDataUrl, exam.questionCount, [
+    ...alternatives,
+  ]);
+
+  // ============================================================
+  // 9. TOTAL DE PONTOS
+  // ============================================================
+
   const totalPoints =
     typeof (exam as any).totalPoints === "number"
       ? (exam as any).totalPoints
-      : typeof (exam as any).examGrade === "number"
-        ? (exam as any).examGrade
+      : typeof exam.examGrade === "number"
+        ? exam.examGrade
         : 100;
+
+  // ============================================================
+  // 10. CALCULA A NOTA
+  // ============================================================
 
   const scoreResult = scoreAnswers(
     exam.answerKey,
     reading.detected as DetectedAnswer[],
     {
       totalPoints,
+
       questionCount:
         typeof exam.questionCount === "number"
           ? exam.questionCount
@@ -215,7 +384,9 @@ export async function createCorrection(input: unknown) {
     },
   );
 
-  console.log("📊 Resultado do scoring:", scoreResult);
+  // ============================================================
+  // QUESTÕES NÃO IDENTIFICADAS
+  // ============================================================
 
   if (scoreResult.unidentified) {
     reading.warnings.push(
@@ -223,54 +394,142 @@ export async function createCorrection(input: unknown) {
     );
   }
 
-  // prefira finalScore (baseado em totalPoints) quando disponível; senão use legacyScore
+  // ============================================================
+  // NOTA FINAL
+  // ============================================================
+
   const finalScore =
     typeof scoreResult.finalScore === "number"
       ? scoreResult.finalScore
       : scoreResult.legacyScore;
 
+  // ============================================================
+  // 11. REMOVE CORREÇÃO ANTERIOR
+  // ============================================================
+
+  if (existingCorrection && data.replaceExisting) {
+    await CorrectionModel.deleteOne({
+      _id: existingCorrection._id,
+      teacherId,
+    });
+
+    await StudentModel.updateOne(
+      {
+        _id: student._id,
+        teacherId,
+      },
+      {
+        $pull: {
+          grades: {
+            examId: exam._id,
+          },
+        },
+      },
+    );
+  }
+
+  // ============================================================
+  // 12. CRIA A NOVA CORREÇÃO
+  // ============================================================
+
   const correction = await CorrectionModel.create({
     teacherId,
-    examId: exam.id,
-    studentName: data.studentName,
+
+    examId: exam._id,
+
+    studentId: student._id,
+
+    studentName: student.name,
+
     imageDataUrl: data.imageDataUrl,
 
     warnings: reading.warnings,
 
-    // detalhe por questão
-    answers: scoreResult.answers, // este campo está definido no schema agora
+    answers: scoreResult.answers,
 
-    // métricas
     totalQuestions: scoreResult.totalQuestions,
+
     correctAnswers: scoreResult.correctAnswers,
+
     unidentified: scoreResult.unidentified,
+
     wrongAnswers: scoreResult.wrongAnswers,
 
-    // notas
-    score: finalScore, // nota "oficial"
+    score: finalScore,
+
     legacyScore: scoreResult.legacyScore,
-    totalPoints, // qual foi o total de pontos usado
+
+    totalPoints,
   });
 
-  // checagem defensiva para agradar o TS (create normalmente retorna documento)
   if (!correction) {
     throw new Error("Erro ao salvar a correção.");
   }
 
+  // ============================================================
+  // 13. ADICIONA A NOVA NOTA AO ALUNO
+  // ============================================================
+
+  await StudentModel.findByIdAndUpdate(
+    student._id,
+    {
+      $push: {
+        grades: {
+          examId: exam._id,
+
+          correctionId: correction._id,
+
+          score: finalScore,
+
+          totalPoints,
+
+          createdAt: new Date(),
+        },
+      },
+    },
+    {
+      new: true,
+    },
+  );
+
+  // ============================================================
+  // 14. ID DA CORREÇÃO
+  // ============================================================
+
   const correctionId = (correction._id ?? correction.id).toString();
 
-  console.log("💾 Correção salva:", correctionId);
+  // ============================================================
+  // 15. INVALIDA CACHE
+  // ============================================================
+
   revalidatePath("/dashboard");
+
   revalidatePath("/corrections");
+
   revalidatePath("/correct");
 
+  // ============================================================
+  // 16. RETORNO
+  // ============================================================
+
   return {
-    correctionId: correction.id,
+    alreadyExists: false,
+
+    correctionId,
+
     correctCount: scoreResult.correctAnswers,
+
     finalScore,
+
     legacyScore: scoreResult.legacyScore,
+
+    replaced: Boolean(existingCorrection),
   };
 }
+
+// ================================================================
+// DELETE CORRECTION
+// ================================================================
 
 export async function deleteCorrection(formData: FormData) {
   const teacherId = await requireTeacher();
@@ -279,11 +538,147 @@ export async function deleteCorrection(formData: FormData) {
 
   await connectDatabase();
 
+  const correction = await CorrectionModel.findOne({
+    _id: id,
+    teacherId,
+  });
+
+  if (!correction) {
+    throw new Error("Correção não encontrada.");
+  }
+
   await CorrectionModel.deleteOne({
     _id: id,
     teacherId,
   });
 
+  // ============================================================
+  // REMOVE A NOTA CORRESPONDENTE DO ALUNO
+  // ============================================================
+
+  if (correction.studentId) {
+    await StudentModel.updateOne(
+      {
+        _id: correction.studentId,
+        teacherId,
+      },
+      {
+        $pull: {
+          grades: {
+            correctionId: correction._id,
+          },
+        },
+      },
+    );
+  }
+
   revalidatePath("/dashboard");
+
   revalidatePath("/corrections");
+
+  revalidatePath("/correct");
+}
+
+// ================================================================
+// GET STUDENTS BY EXAM
+// ================================================================
+
+export async function getStudentsByExam(examId: string, classId: string) {
+  const teacherId = await requireTeacher();
+
+  await connectDatabase();
+
+  // ============================================================
+  // BUSCA A PROVA
+  // ============================================================
+
+  const exam = await ExamModel.findOne({
+    _id: examId,
+    teacherId,
+  })
+    .select("classes")
+    .lean();
+
+  if (!exam) {
+    throw new Error("Prova não encontrada.");
+  }
+
+  // ============================================================
+  // VALIDA TURMAS
+  // ============================================================
+
+  if (!Array.isArray(exam.classes) || exam.classes.length === 0) {
+    throw new Error("A prova não possui turmas associadas.");
+  }
+
+  // ============================================================
+  // VERIFICA SE A TURMA PERTENCE À PROVA
+  // ============================================================
+
+  const examClass = exam.classes.find(
+    (item) => item.classId.toString() === classId,
+  );
+
+  if (!examClass) {
+    throw new Error("A turma selecionada não está associada a esta prova.");
+  }
+
+  // ============================================================
+  // BUSCA ALUNOS DA TURMA
+  // ============================================================
+
+  const students = await StudentModel.find({
+    teacherId,
+    classId,
+  })
+    .select("_id name registration")
+    .sort({
+      name: 1,
+    })
+    .lean();
+
+  return students.map((student) => ({
+    id: student._id.toString(),
+
+    name: student.name,
+
+    registration: student.registration ?? null,
+  }));
+}
+
+// ================================================================
+// GET EXISTING CORRECTION
+// ================================================================
+
+export async function getExistingCorrection(examId: string, studentId: string) {
+  const teacherId = await currentUserId();
+
+  if (!teacherId) {
+    throw new Error("Usuário não autenticado.");
+  }
+
+  await connectDatabase();
+
+  const correction = await CorrectionModel.findOne({
+    teacherId,
+    examId,
+    studentId,
+  })
+    .select("_id score createdAt")
+    .lean();
+
+  if (!correction) {
+    return null;
+  }
+
+  return {
+    correctionId: correction._id.toString(),
+
+    score: Number(correction.score ?? 0),
+
+    createdAt:
+      correction.createdAt instanceof Date
+        ? correction.createdAt.toISOString()
+        : new Date(correction.createdAt).toISOString(),
+  };
 }

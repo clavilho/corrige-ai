@@ -1,35 +1,76 @@
 import Link from "next/link";
 import { FileText, ScanLine, Target, TrendingUp } from "lucide-react";
+
 import { connectDatabase } from "@/lib/database";
 import { currentUserId } from "@/lib/session";
+
 import { CorrectionModel } from "@/features/corrections/correction.model";
 import { ExamModel } from "@/features/exams/exam.model";
 
+import DashboardQuestionStats from "@/components/dashboard-question-stats";
+
 export default async function DashboardPage() {
   const teacherId = await currentUserId();
+
+  if (!teacherId) {
+    return null;
+  }
+
   await connectDatabase();
 
   const [exams, corrections] = await Promise.all([
     ExamModel.find({ teacherId }).lean(),
-    CorrectionModel.find({ teacherId }).sort({ createdAt: -1 }).lean(),
+
+    CorrectionModel.find({
+      teacherId,
+    })
+      .sort({ createdAt: -1 })
+      .lean(),
   ]);
 
+  /*
+   * ============================================================
+   * ESTATÍSTICAS GERAIS
+   * ============================================================
+   */
+
   const average = corrections.length
-    ? corrections.reduce((sum, item) => sum + (item.score ?? 0), 0) / corrections.length
+    ? corrections.reduce((sum, item) => sum + (item.score ?? 0), 0) /
+      corrections.length
     : 0;
 
+  const totalCorrectAnswers = corrections.reduce(
+    (sum, item) => sum + (item.correctAnswers ?? 0),
+    0,
+  );
+
+  const totalQuestionsAnswered = corrections.reduce(
+    (sum, item) => sum + (item.totalQuestions ?? 0),
+    0,
+  );
+
   const accuracy =
-    (corrections.reduce((sum, item) => sum + (item.correctAnswers ?? 0), 0) /
-      Math.max(
-        1,
-        corrections.reduce((sum, item) => sum + (item.totalQuestions ?? 0), 0),
-      )) *
-    100;
+    (totalCorrectAnswers / Math.max(1, totalQuestionsAnswered)) * 100;
 
   const stats = [
-    { label: "Provas criadas", value: exams.length, icon: FileText },
-    { label: "Provas corrigidas", value: corrections.length, icon: ScanLine },
-    { label: "Média das notas", value: average.toFixed(1), icon: Target },
+    {
+      label: "Provas criadas",
+      value: exams.length,
+      icon: FileText,
+    },
+
+    {
+      label: "Provas corrigidas",
+      value: corrections.length,
+      icon: ScanLine,
+    },
+
+    {
+      label: "Média das notas",
+      value: average.toFixed(1),
+      icon: Target,
+    },
+
     {
       label: "Taxa de acerto",
       value: `${accuracy.toFixed(0)}%`,
@@ -37,92 +78,296 @@ export default async function DashboardPage() {
     },
   ];
 
-  // --- build question-level error stats ---
-  // map key => `${examId}:${questionNumber}`
-  type Agg = {
+  /*
+   * ============================================================
+   * MAPA DE PROVAS
+   * ============================================================
+   *
+   * A estrutura atual da prova é:
+   *
+   * exam.classes = [
+   *   {
+   *     classId,
+   *     className
+   *   }
+   * ]
+   *
+   * Uma prova pode possuir uma ou várias turmas.
+   *
+   * Como o DashboardQuestionStats precisa saber a turma
+   * associada à prova, mantemos aqui a primeira turma.
+   *
+   * A estrutura continua compatível com o componente atual.
+   */
+
+  type ExamInfo = {
+    title: string;
+    classId: string;
+    className: string;
+  };
+
+  const examInfoById = new Map<string, ExamInfo>();
+
+  for (const exam of exams) {
+    const examId = String(exam._id);
+
+    const firstClass =
+      Array.isArray(exam.classes) && exam.classes.length > 0
+        ? exam.classes[0]
+        : null;
+
+    examInfoById.set(examId, {
+      title: exam.title ?? "Prova sem título",
+
+      classId: firstClass ? String(firstClass.classId) : "",
+
+      className: firstClass?.className ?? "Turma não informada",
+    });
+  }
+
+  /*
+   * ============================================================
+   * QUESTÕES COM MAIS ERROS
+   *
+   * Agrupamento:
+   *
+   * turma + prova + questão
+   *
+   * Isso evita misturar a mesma questão de provas/turmas
+   * diferentes.
+   * ============================================================
+   */
+
+  type QuestionAgg = {
     examId: string;
     examTitle: string;
+
+    classId: string;
+    className: string;
+
     questionNumber: number;
+
     attempts: number;
     wrongs: number;
   };
 
-  const examTitleById = new Map<string, string>();
-  for (const ex of exams) {
-    const id = String((ex as any)._id ?? ex._id);
-    examTitleById.set(id, (ex as any).title ?? "Prova sem título");
-  }
+  const questionMap = new Map<string, QuestionAgg>();
 
-  const aggMap = new Map<string, Agg>();
+  for (const correction of corrections) {
+    const examId = String(correction.examId);
 
-  for (const corr of corrections) {
-    const examId = String((corr as any).examId ?? corr.examId);
-    const examTitle = examTitleById.get(examId) ?? "Prova desconhecida";
+    const examInfo = examInfoById.get(examId);
 
-    // prefer 'answers' (AnswerRow[] with isCorrect), fallback: skip if absent
-    const answers = (corr as any).answers as
-      | Array<{ questionNumber: number; isCorrect: boolean; markedAnswer?: string }>
-      | undefined;
-
-    if (!Array.isArray(answers) || answers.length === 0) {
-      // if no detailed answers are available, skip this correction for per-question stats
+    if (!examInfo) {
       continue;
     }
 
-    for (const a of answers) {
-      const q = Number(a.questionNumber);
-      if (!Number.isInteger(q) || q < 1) continue;
+    const answers = correction.answers as
+      | Array<{
+          questionNumber: number;
+          isCorrect: boolean;
+          markedAnswer?: string | null;
+        }>
+      | undefined;
 
-      const key = `${examId}:${q}`;
-      const entry = aggMap.get(key);
-      const isWrong = !a.isCorrect; // treat not correct (including null/blank) as wrong
+    if (!Array.isArray(answers) || answers.length === 0) {
+      continue;
+    }
 
-      if (entry) {
-        entry.attempts += 1;
-        if (isWrong) entry.wrongs += 1;
+    for (const answer of answers) {
+      const questionNumber = Number(answer.questionNumber);
+
+      if (!Number.isInteger(questionNumber) || questionNumber < 1) {
+        continue;
+      }
+
+      /*
+       * A chave considera:
+       *
+       * turma
+       * prova
+       * questão
+       */
+
+      const key = `${examInfo.classId}:${examId}:${questionNumber}`;
+
+      const isWrong = !answer.isCorrect;
+
+      const existing = questionMap.get(key);
+
+      if (existing) {
+        existing.attempts += 1;
+
+        if (isWrong) {
+          existing.wrongs += 1;
+        }
       } else {
-        aggMap.set(key, {
+        questionMap.set(key, {
           examId,
-          examTitle,
-          questionNumber: q,
+
+          examTitle: examInfo.title,
+
+          classId: examInfo.classId,
+
+          className: examInfo.className,
+
+          questionNumber,
+
           attempts: 1,
+
           wrongs: isWrong ? 1 : 0,
         });
       }
     }
   }
 
-  // convert to array and compute error percentage
-  const questionStats = Array.from(aggMap.values())
-    .map((v) => ({
-      ...v,
-      errorRate: v.attempts > 0 ? (v.wrongs / v.attempts) * 100 : 0,
+  /*
+   * ============================================================
+   * TRANSFORMA OS DADOS PARA O COMPONENTE
+   * ============================================================
+   */
+
+  const questionStats = Array.from(questionMap.values())
+    .map((item) => ({
+      ...item,
+
+      errorRate: item.attempts > 0 ? (item.wrongs / item.attempts) * 100 : 0,
     }))
-    // sort by number of wrongs desc, then by errorRate desc
     .sort((a, b) => {
-      if (b.wrongs !== a.wrongs) return b.wrongs - a.wrongs;
+      if (b.wrongs !== a.wrongs) {
+        return b.wrongs - a.wrongs;
+      }
+
       return b.errorRate - a.errorRate;
-    })
-    .slice(0, 5); // top 5
+    });
+
+  /*
+   * ============================================================
+   * TURMAS DISPONÍVEIS
+   * ============================================================
+   *
+   * Uma prova pode possuir várias turmas.
+   *
+   * Portanto, percorremos:
+   *
+   * exams
+   *   └── classes
+   *        ├── classId
+   *        └── className
+   *
+   * Não utilizamos mais:
+   *
+   * exam.classId
+   * exam.className
+   */
+
+  const classesMap = new Map<
+    string,
+    {
+      id: string;
+      name: string;
+    }
+  >();
+
+  for (const exam of exams) {
+    const examClasses = Array.isArray(exam.classes) ? exam.classes : [];
+
+    for (const examClass of examClasses) {
+      const classId = String(examClass.classId);
+
+      const className = examClass.className ?? "Turma não informada";
+
+      if (!classesMap.has(classId)) {
+        classesMap.set(classId, {
+          id: classId,
+          name: className,
+        });
+      }
+    }
+  }
+
+  const classes = Array.from(classesMap.values()).sort((a, b) =>
+    a.name.localeCompare(b.name),
+  );
+
+  /*
+   * ============================================================
+   * SERIALIZA OS DADOS
+   * ============================================================
+   */
+
+  const serializedQuestionStats = questionStats.map((item) => ({
+    examId: item.examId,
+
+    examTitle: item.examTitle,
+
+    classId: item.classId,
+
+    className: item.className,
+
+    questionNumber: item.questionNumber,
+
+    attempts: item.attempts,
+
+    wrongs: item.wrongs,
+
+    errorRate: item.errorRate,
+  }));
+
+  /*
+   * ============================================================
+   * RENDER
+   * ============================================================
+   */
 
   return (
     <div className="space-y-8">
+      {/* ====================================================== */}
+      {/* HEADER */}
+      {/* ====================================================== */}
+
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold">Dashboard</h1>
+
           <p className="text-sm text-slate-500">
             Visão geral das suas provas e correções.
           </p>
         </div>
+
         <div className="flex gap-2">
           <Link
-            className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium shadow-sm"
+            className="
+              rounded-md
+              border
+              border-slate-200
+              bg-white
+              px-3
+              py-2
+              text-sm
+              font-medium
+              shadow-sm
+              transition
+              hover:bg-slate-50
+            "
             href="/exams"
           >
             Nova prova
           </Link>
+
           <Link
-            className="rounded-md bg-[#007782] px-3 py-2 text-sm font-medium text-white shadow-sm"
+            className="
+              rounded-md
+              bg-[#007782]
+              px-3
+              py-2
+              text-sm
+              font-medium
+              text-white
+              shadow-sm
+              transition
+              hover:bg-[#00666b]
+            "
             href="/correct"
           >
             Corrigir prova
@@ -130,70 +375,99 @@ export default async function DashboardPage() {
         </div>
       </div>
 
+      {/* ====================================================== */}
+      {/* ESTATÍSTICAS */}
+      {/* ====================================================== */}
+
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {stats.map(({ label, value, icon: Icon }) => (
           <article
             key={label}
-            className="flex items-center gap-4 rounded-xl border border-slate-200 bg-white p-6 shadow-[0_12px_32px_-12px_rgba(23,38,51,.18)]"
+            className="
+                flex
+                items-center
+                gap-4
+                rounded-xl
+                border
+                border-slate-200
+                bg-white
+                p-6
+                shadow-[0_12px_32px_-12px_rgba(23,38,51,.18)]
+              "
           >
-            <span className="grid size-10 place-items-center rounded-lg bg-[#e8f5f5] text-[#007782]">
+            <span
+              className="
+                  grid
+                  size-10
+                  place-items-center
+                  rounded-lg
+                  bg-[#e8f5f5]
+                  text-[#007782]
+                "
+            >
               <Icon className="size-5" />
             </span>
+
             <div>
               <p className="text-2xl font-semibold">{value}</p>
+
               <p className="text-xs text-slate-500">{label}</p>
             </div>
           </article>
         ))}
       </div>
 
+      {/* ====================================================== */}
+      {/* GRÁFICOS / QUESTÕES */}
+      {/* ====================================================== */}
+
       <div className="grid gap-6 lg:grid-cols-2">
-        <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-[0_12px_32px_-12px_rgba(23,38,51,.18)]">
+        {/* ==================================================== */}
+        {/* EVOLUÇÃO */}
+        {/* ==================================================== */}
+
+        <section
+          className="
+            rounded-xl
+            border
+            border-slate-200
+            bg-white
+            p-6
+            shadow-[0_12px_32px_-12px_rgba(23,38,51,.18)]
+          "
+        >
           <h2 className="font-medium">Evolução das notas</h2>
+
           <p className="mt-1 text-sm text-slate-500">
             As últimas correções aparecerão aqui.
           </p>
-          <div className="mt-8 grid h-36 place-items-center rounded-lg bg-slate-50 text-sm text-slate-400">
+
+          <div
+            className="
+              mt-8
+              grid
+              h-36
+              place-items-center
+              rounded-lg
+              bg-slate-50
+              text-sm
+              text-slate-400
+            "
+          >
             {corrections.length
               ? `${corrections.length} correção(ões) registrada(s)`
               : "Ainda não há dados para exibir."}
           </div>
         </section>
 
-        <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-[0_12px_32px_-12px_rgba(23,38,51,.18)]">
-          <h2 className="font-medium">Questões com mais erros</h2>
-          <p className="mt-1 text-sm text-slate-500">
-            Questões com maior número de respostas incorretas (ou não identificadas) — top 5.
-          </p>
+        {/* ==================================================== */}
+        {/* QUESTÕES COM MAIS ERROS */}
+        {/* ==================================================== */}
 
-          <div className="mt-4 space-y-3">
-            {questionStats.length === 0 ? (
-              <div className="rounded-lg bg-slate-50 p-6 text-sm text-slate-400">
-                Ainda não há dados suficientes para identificar as questões mais problemáticas.
-              </div>
-            ) : (
-              <ul className="space-y-2">
-                {questionStats.map((q) => (
-                  <li key={`${q.examId}-${q.questionNumber}`} className="flex items-center justify-between rounded-lg border border-gray-100 p-3">
-                    <div>
-                      <div className="text-sm text-slate-600">
-                        <strong className="text-slate-800">Questão {q.questionNumber}</strong>{" "}
-                        <span className="text-xs text-slate-500"> — {q.examTitle}</span>
-                      </div>
-                      <div className="mt-1 text-xs text-slate-500">
-                        {q.wrongs} erro(s) em {q.attempts} tentativa(s) — {q.errorRate.toFixed(0)}% de erro
-                      </div>
-                    </div>
-
-                    <div className="text-sm font-semibold text-slate-800">
-                      {q.errorRate.toFixed(0)}%
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </section>
+        <DashboardQuestionStats
+          questionStats={serializedQuestionStats}
+          classes={classes}
+        />
       </div>
     </div>
   );

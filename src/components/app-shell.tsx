@@ -15,6 +15,7 @@ const navigation = [
   { href: "/exams", label: "Provas", icon: FileText },
   { href: "/correct", label: "Corrigir prova", icon: ScanLine },
   { href: "/corrections", label: "Minhas correções", icon: History },
+  { href: "/classes", label: "Minhas turmas", icon: GraduationCap}
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {

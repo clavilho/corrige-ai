@@ -6,6 +6,7 @@ export type ExamFormData = {
   questionCount: number;
   examGrade: number;
   alternativeCount: number;
+  classId: string;
 };
 
 export type AnswerKeyItem = {
