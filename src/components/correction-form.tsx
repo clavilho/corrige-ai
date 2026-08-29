@@ -346,11 +346,15 @@ export function CorrectionForm({
 
   async function convertToBase64(file: File): Promise<string> {
     const compressed = await imageCompression(file, {
-      maxSizeMB: 0.35,
-      maxWidthOrHeight: 1600,
-      useWebWorker: true,
+      // maxSizeMB: 0.35,
+      // maxWidthOrHeight: 1600,
+      // useWebWorker: true,
+      // fileType: "image/jpeg",
+      // initialQuality: 0.75,
+      maxSizeMB: 2,
+      maxWidthOrHeight: 3000,
       fileType: "image/jpeg",
-      initialQuality: 0.75,
+      initialQuality: 0.92,
     });
 
     return new Promise((resolve, reject) => {
